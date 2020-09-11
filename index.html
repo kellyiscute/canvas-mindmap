@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>index</title>
+</head>
+<script>
+  const NODE_PADDING = 10
+  const X_PADDING = 150
+
+  function connect(x1, y1, x2, y2) {
+    const cvs = document.getElementById('c');
+    const ctx = cvs.getContext('2d');
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 3, y1, x1, y2, x2, y2);
+    ctx.stroke();
+  }
+
+  function drawRect(x, y, content, style) {
+    const splittedText = content.split('\n');
+    const cvs = document.getElementById('c');
+    const ctx = cvs.getContext('2d');
+    ctx.beginPath();
+    const font = style ? style.font ? style.font : '20px TimesNewRoman' : '20px TimesNewRoman'
+    const drawInfo = calcRect(content, font)
+
+    ctx.strokeStyle = '#000'
+    ctx.lineWidth = '1'
+    ctx.fillStyle = '#fff'
+
+    if (style) {
+      if (style.background) {
+        ctx.fillStyle = style.background
+      }
+      if (style.borderWidth) {
+        ctx.lineWidth = style.borderWidth
+      }
+      if (style.borderColor) {
+        ctx.strokeStyle = style.borderColor
+      }
+    }
+
+    ctx.fillRect(x, y, drawInfo.width, drawInfo.height - NODE_PADDING);
+    ctx.strokeRect(x, y, drawInfo.width, drawInfo.height - NODE_PADDING);
+
+    ctx.fillStyle = '#000'
+    if (style) {
+      if (style.foreground) {
+        ctx.fillStyle = style.foreground
+      }
+    }
+    for (let i = 0; i < splittedText.length; i++) {
+      ctx.fillText(splittedText[i], x + 10, y + (i + 1) * drawInfo.textHeight);
+    }
+    const result = { x: x, y: y, width: drawInfo.width, height: drawInfo.height };
+    return result
+  }
+
+  function calcRect(content, font) {
+    const splittedText = content.split('\n');
+    const cvs = document.getElementById('c');
+    const ctx = cvs.getContext('2d');
+    if (font) {
+      ctx.font = font;
+    } else {
+      ctx.font = '20px TimesNewRoman'
+    }
+    const measure = ctx.measureText(content);
+    let textWidth = 0;
+    for (const content of splittedText) {
+      const w = ctx.measureText(content).width;
+      if (w > textWidth) {
+        textWidth = w;
+      }
+    }
+    const textHeight =
+      (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
+      2;
+    const nodewidth = textWidth + 20;
+    const nodeheight =
+      textHeight * splittedText.length + 5 * splittedText.length + 5;
+
+    const result = { width: nodewidth, height: nodeheight + NODE_PADDING, textHeight: textHeight };
+    return result
+  }
+
+  function buildTree(node, baseX, baseY, parentNode) {
+    if (!baseX) {
+      baseX = 50;
+    }
+    if (!baseY) {
+      baseY = 10;
+    }
+
+    let treeHeight = 0;
+    const thisNode = calcRect(node.content)
+    const connectPoints = []
+    if (node.children) {
+      let info;
+      for (const childNode of node.children) {
+        info = buildTree(
+          childNode,
+          baseX + thisNode.width + X_PADDING,
+          treeHeight + baseY
+        );
+        treeHeight += info.treeHeight + info.selfHeight;
+        connectPoints.push(info.connectPoint)
+      }
+      treeHeight -= info.selfHeight;
+    }
+    for (const point of connectPoints) {
+      connect(baseX + thisNode.width, baseY + treeHeight / 2 + thisNode.height / 2, baseX + thisNode.width + X_PADDING, point);
+    }
+
+    drawRect(baseX, baseY + treeHeight / 2, node.content, node.style);
+    return { treeHeight: treeHeight, selfHeight: thisNode.height, connectPoint: baseY + treeHeight / 2 + thisNode.height / 2 };
+  }
+
+</script>
+
+<body>
+  <canvas id="c" height="300" width="300"></canvas>
+</body>
+<script>
+  const cvs = document.getElementById('c');
+
+  const data = {
+    content: 'main node',
+    children: [
+      {
+        content: 'child1',
+        children: [
+          {
+            content: 'level3\nnew line',
+            children: [
+              {
+                content: '3-1', style: {
+                  background: '#1e1e1e',
+                  foreground: "#ffffff",
+                  borderColor: '#9cdcfe',
+                  borderWidth: '2',
+                  font: '10px Calibri'
+                }
+              },
+              { content: '3-1' },
+              { content: '3-1' },
+              { content: '3-1' },
+              { content: '3-1' },
+              { content: '3-1' },
+              { content: '3-1', bg: '' },
+            ]
+          },
+          { content: 'level3' },
+          { content: 'level3' },
+        ],
+      },
+      {
+        content: 'child2\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line',
+        children: [
+          { content: '2-1' },
+          { content: '2-2' },
+        ]
+      },
+      {
+        content: 'child3',
+        children: [
+          { content: '3-1' }
+        ]
+      },
+    ],
+  };
+
+  const d = buildTree(data);
+  cvs.height = d.treeHeight + 100
+  console.log(d)
+  cvs.width = window.innerWidth
+  buildTree(data);
+
+</script>
+
+</html>
