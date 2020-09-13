@@ -5,175 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>index</title>
   </head>
-  <script>
-    const NODE_PADDING = 10;
-    const NODE_X_PADDING = 150;
-
-    function connect(x1, y1, x2, y2, style) {
-      const cvs = document.getElementById("c");
-      const ctx = cvs.getContext("2d");
-      ctx.strokeStyle = style.color;
-      ctx.lineWidth = style.width;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 3, y1, x1, y2, x2, y2);
-      ctx.stroke();
-    }
-
-    function drawRect(x, y, content, style) {
-      const splittedText = content.split("\n");
-      const cvs = document.getElementById("c");
-      const ctx = cvs.getContext("2d");
-      ctx.beginPath();
-
-      // Prepare Style
-
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = "1";
-      ctx.fillStyle = "#fff";
-
-      let INNER_PADDING = { top: 5, left: 5, bottom: 5, right: 5 };
-      const font = style
-        ? style.font
-          ? style.font
-          : "20px TimesNewRoman"
-        : "20px TimesNewRoman";
-
-      if (style) {
-        if (style.background) {
-          ctx.fillStyle = style.background;
-        }
-        if (style.borderWidth) {
-          ctx.lineWidth = style.borderWidth;
-        }
-        if (style.borderColor) {
-          ctx.strokeStyle = style.borderColor;
-        }
-        if (style.padding) {
-          INNER_PADDING = style.padding;
-        }
-      }
-
-      const drawInfo = calcRect(content, font, INNER_PADDING);
-
-      ctx.fillRect(x, y, drawInfo.width, drawInfo.height - NODE_PADDING);
-      ctx.strokeRect(x, y, drawInfo.width, drawInfo.height - NODE_PADDING);
-
-      ctx.fillStyle = "#000";
-      if (style) {
-        if (style.foreground) {
-          ctx.fillStyle = style.foreground;
-        }
-      }
-      for (let i = 0; i < splittedText.length; i++) {
-        ctx.fillText(
-          splittedText[i],
-          x + INNER_PADDING.left,
-          y + (i + 1) * drawInfo.textHeight + INNER_PADDING.top
-        );
-      }
-      const result = {
-        x: x,
-        y: y,
-        width: drawInfo.width,
-        height: drawInfo.height,
-      };
-      return result;
-    }
-
-    function calcRect(content, font, padding) {
-      const splittedText = content.split("\n");
-      const cvs = document.getElementById("c");
-      const ctx = cvs.getContext("2d");
-      if (font) {
-        ctx.font = font;
-      } else {
-        ctx.font = "20px TimesNewRoman";
-      }
-      const measure = ctx.measureText(content);
-      let textWidth = 0;
-      for (const content of splittedText) {
-        const w = ctx.measureText(content).width;
-        if (w > textWidth) {
-          textWidth = w;
-        }
-      }
-      const textHeight =
-        (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
-        1.5;
-      const nodewidth = textWidth + padding.left + padding.right;
-      const nodeheight =
-        textHeight * splittedText.length +
-        splittedText.length +
-        padding.top +
-        padding.bottom;
-
-      const result = {
-        width: nodewidth,
-        height: nodeheight + NODE_PADDING,
-        textHeight: textHeight,
-      };
-      return result;
-    }
-
-    function buildTree(node, baseX, baseY) {
-      if (!baseX) {
-        baseX = 50;
-      }
-      if (!baseY) {
-        baseY = 10;
-      }
-      let connectionStyle;
-      if (!node.connectionStyle) {
-        connectionStyle = { width: "1", color: "#1e1e1e" };
-      } else {
-        connectionStyle = node.connectionStyle;
-        console.log(connectionStyle);
-      }
-
-      let treeHeight = 0;
-      let font;
-      let INNER_PADDING = { top: 5, left: 5, bottom: 5, right: 5 };
-      if (node.style) {
-        font = node.style.font;
-        if (node.style.padding) {
-          INNER_PADDING = node.style.padding;
-        }
-      }
-      const thisNode = calcRect(node.content, font, INNER_PADDING);
-      const connectPoints = [];
-      if (node.children) {
-        let info;
-        for (const childNode of node.children) {
-          info = buildTree(
-            childNode,
-            baseX + thisNode.width + NODE_X_PADDING,
-            treeHeight + baseY
-          );
-          treeHeight += info.treeHeight + info.selfHeight;
-          connectPoints.push(info.connectPoint);
-        }
-        treeHeight -= info.selfHeight;
-      }
-      for (const point of connectPoints) {
-        console.log(connectionStyle);
-        connect(
-          baseX + thisNode.width,
-          baseY + treeHeight / 2 + thisNode.height / 2,
-          baseX + thisNode.width + NODE_X_PADDING,
-          point,
-          connectionStyle
-        );
-      }
-
-      drawRect(baseX, baseY + treeHeight / 2, node.content, node.style);
-      return {
-        treeHeight: treeHeight,
-        selfHeight: thisNode.height,
-        connectPoint: baseY + treeHeight / 2 + thisNode.height / 2,
-      };
-    }
-  </script>
+  <script src="painter.js"></script>
 
   <body>
     <canvas id="c" height="300" width="300"></canvas>
@@ -190,7 +22,7 @@
             {
               connectionStyle: {
                 width: "10",
-                color: "#1e1e1e",
+                color: "skyblue",
               },
               content: "level3\nnew line",
               children: [
@@ -202,29 +34,65 @@
                     borderColor: "#9cdcfe",
                     borderWidth: "2",
                     font: "50px Calibri",
-                    padding: { left: 10, top: 0, bottom: 5, right: 0 },
+                    padding: 10,
+                    radius: 20,
+                    height: 100,
+                    width: 300,
+                  },
+                  image: {
+                    src: "",
+                    height: 10,
+                    width: 10,
                   },
                 },
-                { content: "3-1yyy" },
-                { content: "3-11111" },
-                { content: "3-1" },
-                { content: "3-1" },
-                { content: "3-1" },
-                { content: "3-1", bg: "" },
+                {
+                  content: "3-1yyy",
+                },
+                {
+                  content: "3-11111",
+                },
+                {
+                  content: "3-1",
+                },
+                {
+                  content: "3-1",
+                },
+                {
+                  content: "3-1",
+                },
+                {
+                  content: "3-1",
+                  bg: "",
+                },
               ],
             },
-            { content: "level3" },
-            { content: "level3" },
+            {
+              content: "level3",
+            },
+            {
+              content: "level3",
+            },
           ],
         },
         {
           content:
             "child2\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line",
-          children: [{ content: "2-1" }, { content: "2-2" }],
+          children: [
+            {
+              content: "2-1",
+            },
+            {
+              content: "2-2",
+            },
+          ],
         },
         {
           content: "child3",
-          children: [{ content: "3-1" }],
+          children: [
+            {
+              content: "3-1",
+            },
+          ],
         },
       ],
     };
