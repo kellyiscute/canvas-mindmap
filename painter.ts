@@ -271,7 +271,7 @@ function buildTree(
   );
   const connectPoints = [];
   if (node.children) {
-    let info;
+    let info: ITreeBuildResult;
     for (const childNode of node.children) {
       info = buildTree(
         childNode,
