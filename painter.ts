@@ -20,6 +20,18 @@ interface IStyle {
   width?: number;
 }
 
+interface IProcessedStyle {
+  background: string;
+  foreground: string;
+  borderColor: string;
+  borderWidth: number;
+  font: string;
+  padding: IPadding;
+  radius: number;
+  height: number | undefined;
+  width: number | undefined;
+}
+
 interface IConnectionStyle {
   color?: string;
   width: number;
@@ -63,6 +75,14 @@ interface IImageContent {
   src: string;
   height: number;
   width: number;
+  padding: IPadding | number;
+}
+
+interface IProcessedImageContent {
+  src: string;
+  height: number;
+  width: number;
+  padding: IPadding;
 }
 
 function connect(
@@ -86,76 +106,56 @@ function drawRect(
   x: number,
   y: number,
   content: string,
-  style: IStyle,
+  style: IProcessedStyle,
+  image: IProcessedImageContent,
 ): IDrawResult {
   const splittedText = content.split("\n");
   const cvs = <HTMLCanvasElement> document.getElementById("c");
   const ctx = <CanvasRenderingContext2D> cvs.getContext("2d");
   ctx.beginPath();
 
-  // Prepare Style
+  ctx.lineWidth = style.borderWidth;
+  ctx.strokeStyle = style.borderColor;
 
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 1;
-  ctx.fillStyle = "#fff";
+  const drawInfo = calcRect(
+    content,
+    style.font,
+    style.padding,
+    style.height,
+    style.width,
+    image,
+  );
 
-  let INNER_PADDING: IPadding = {
-    top: 5,
-    left: 5,
-    bottom: 5,
-    right: 5,
-  };
-  const font = style
-    ? style.font ? style.font : "20px TimesNewRoman"
-    : "20px TimesNewRoman";
-  let radius = 0;
-  let height;
-  let width;
-
-  if (style) {
-    if (style.background) {
-      ctx.fillStyle = style.background;
-    }
-    if (style.borderWidth) {
-      ctx.lineWidth = style.borderWidth;
-    }
-    if (style.borderColor) {
-      ctx.strokeStyle = style.borderColor;
-    }
-    if (style.padding) {
-      INNER_PADDING = <IPadding> style.padding;
-    }
-    if (style.radius) {
-      radius = style.radius;
-    }
-    height = style.height;
-    width = style.width;
-  }
-
-  const drawInfo = calcRect(content, font, INNER_PADDING, height, width);
-
+  ctx.fillStyle = style.background;
   roundedRect(
     ctx,
     x,
     y,
     drawInfo.width,
     drawInfo.height - NODE_PADDING,
-    radius,
+    style.radius,
   );
 
-  ctx.fillStyle = "#000";
-  if (style) {
-    if (style.foreground) {
-      ctx.fillStyle = style.foreground;
-    }
-  }
+  ctx.fillStyle = style.foreground;
   for (let i = 0; i < splittedText.length; i++) {
     ctx.fillText(
       splittedText[i],
-      x + INNER_PADDING.left,
-      y + (i + 1) * drawInfo.textHeight + INNER_PADDING.top,
+      x + style.padding.left,
+      y + (i + 1) * drawInfo.textHeight + style.padding.top,
     );
   }
+  const currentY = y + splittedText.length * drawInfo.textHeight;
+  const img = new Image(image.width, image.height);
+  img.src = image.src;
+  img.onload = function () {
+    ctx.drawImage(
+      img,
+      x + image.padding.left,
+      currentY + image.padding.top + style.padding.bottom,
+      image.width,
+      image.height,
+    );
+  };
   const result: IDrawResult = {
     x: x,
     y: y,
@@ -171,15 +171,12 @@ function calcRect(
   padding: IPadding,
   height: number,
   width: number,
+  image: IProcessedImageContent | undefined,
 ): IDrawInfo {
   const splittedText = content.split("\n");
   const cvs = <HTMLCanvasElement> document.getElementById("c");
   const ctx = <CanvasRenderingContext2D> cvs.getContext("2d");
-  if (font) {
-    ctx.font = font;
-  } else {
-    ctx.font = "20px TimesNewRoman";
-  }
+  ctx.font = font;
   const measure = ctx.measureText(content);
   let textWidth = 0;
   for (const content of splittedText) {
@@ -196,14 +193,21 @@ function calcRect(
     1.5;
 
   if (!width) {
-    nodewidth = textWidth + padding.left + padding.right;
+    nodewidth = textWidth + padding.left + padding.right + image.padding.left +
+      image.padding.right;
+    if (image.width > nodewidth) {
+      nodewidth = image.width;
+    }
   }
 
   if (!height) {
     nodeheight = textHeight * splittedText.length +
       splittedText.length +
       padding.top +
-      padding.bottom;
+      padding.bottom +
+      image.height +
+      image.padding.top +
+      image.padding.bottom;
   }
 
   const result: IDrawInfo = {
@@ -233,40 +237,37 @@ function buildTree(
   }
 
   let treeHeight = 0;
-  let font: string | undefined;
-  let INNER_PADDING: number | IPadding = {
-    top: 5,
-    left: 5,
-    bottom: 5,
-    right: 5,
-  };
-  let height: number | undefined;
-  let width: number | undefined;
-  if (node.style) {
-    font = node.style.font;
 
-    // convert number padding to padding object
-    if (node.style.padding) {
-      INNER_PADDING = node.style.padding;
-      if (typeof node.style.padding == "number") {
-        INNER_PADDING = {
-          top: node.style.padding,
-          left: node.style.padding,
-          right: node.style.padding,
-          bottom: node.style.padding,
-        };
-        node.style.padding = INNER_PADDING;
-      }
-    }
-    height = node.style.height;
-    width = node.style.width;
+  let image: IImageContent = node.image;
+  if (!node.image) {
+    image = {
+      width: 0,
+      height: 0,
+      src: "",
+      padding: 10,
+    };
   }
+  if (!image.padding) {
+    image.padding = 0;
+  }
+  if (typeof image.padding == "number") {
+    image.padding = {
+      top: image.padding,
+      left: image.padding,
+      right: image.padding,
+      bottom: image.padding,
+    };
+  }
+
+  const style = processInitialStyle(node.style);
+
   const thisNode = calcRect(
     node.content,
-    font,
-    <IPadding> INNER_PADDING,
-    height,
-    width,
+    style.font,
+    <IPadding> style.padding,
+    style.height,
+    style.width,
+    <IProcessedImageContent> image,
   );
   const connectPoints = [];
   if (node.children) {
@@ -292,11 +293,77 @@ function buildTree(
     );
   }
 
-  drawRect(baseX, baseY + treeHeight / 2, node.content, node.style);
+  drawRect(
+    baseX,
+    baseY + treeHeight / 2,
+    node.content,
+    style,
+    <IProcessedImageContent> image,
+  );
   return {
     treeHeight: treeHeight,
     selfHeight: thisNode.height,
     connectPoint: baseY + treeHeight / 2 + thisNode.height / 2,
+  };
+}
+
+function processInitialStyle(style: IStyle): IProcessedStyle {
+  let font: string = "20px TimesNewRoman";
+  let innerPadding: IPadding = {
+    top: 5,
+    left: 5,
+    bottom: 5,
+    right: 5,
+  };
+  let height: number | undefined;
+  let width: number | undefined;
+  let radius = 10;
+  let borderColor = "black";
+  let borderWidth = 1;
+  let background = "white";
+  let foreground = "black";
+  if (style) {
+    if (style.font) {
+      font = style.font;
+    }
+    if (style.background) {
+      background = style.background;
+    }
+    if (style.foreground) {
+      background = style.foreground;
+    }
+    if (style.borderWidth) {
+      borderWidth = style.borderWidth;
+    }
+    if (style.borderColor) {
+      borderColor = style.borderColor;
+    }
+    if (style.radius) {
+      radius = style.radius;
+    }
+    if (style.padding) {
+      if (typeof style.padding == "number") {
+        innerPadding = {
+          top: style.padding,
+          left: style.padding,
+          right: style.padding,
+          bottom: style.padding,
+        };
+      }
+    }
+    height = style.height;
+    width = style.width;
+  }
+  return {
+    font: font,
+    padding: <IPadding> innerPadding,
+    height: height,
+    width: width,
+    radius: radius,
+    background: background,
+    foreground: foreground,
+    borderColor: borderColor,
+    borderWidth: borderWidth,
   };
 }
 
