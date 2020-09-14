@@ -14,92 +14,107 @@
     const cvs = document.getElementById("c");
 
     const data = {
-      content: "main node",
-      children: [
-        {
-          content: "child1",
-          children: [
-            {
-              connectionStyle: {
-                width: "10",
-                color: "skyblue",
+      globalStyle: {
+        background: "#1e1e1e",
+        foreground: "white",
+        borderColor: "#9cdcfe",
+        borderWidth: "2",
+        font: "20px Calibri",
+        padding: 10,
+        radius: 20,
+      },
+      connectionStyle: {
+        width: 2,
+        color: "skyblue",
+      },
+      node: {
+        content: "main node",
+        children: [
+          {
+            content: "child1",
+            children: [
+              {
+                connectionStyle: {
+                  width: "2",
+                  color: "green",
+                },
+                content: "level3\nnew line",
+                children: [
+                  {
+                    content: "with style",
+                    style: {
+                      background: "#1e1e1e",
+                      foreground: "white",
+                      borderColor: "#9cdcfe",
+                      borderWidth: "2",
+                      font: "20px Calibri",
+                      padding: 10,
+                      radius: 20,
+                    },
+                    image: {
+                      src: "下载.png",
+                      height: 100,
+                      width: 100,
+                      padding: 0,
+                    },
+                  },
+                  {
+                    content: "3-1yyy",
+                  },
+                  {
+                    content: "3-11111",
+                  },
+                  {
+                    content: "3-1",
+                  },
+                  {
+                    content: "3-1",
+                  },
+                  {
+                    content: "3-1",
+                  },
+                  {
+                    content: "3-1",
+                    bg: "",
+                  },
+                ],
               },
-              content: "level3\nnew line",
-              children: [
-                {
-                  content: "with style",
-                  style: {
-                    background: "#1e1e1e",
-                    foreground: "white",
-                    borderColor: "#9cdcfe",
-                    borderWidth: "2",
-                    font: "50px Calibri",
-                    padding: 10,
-                    radius: 20,
-                  },
-                  image: {
-                    src: "下载.png",
-                    height: 100,
-                    width: 100,
-                    padding: 120,
-                  },
-                },
-                {
-                  content: "3-1yyy",
-                },
-                {
-                  content: "3-11111",
-                },
-                {
-                  content: "3-1",
-                },
-                {
-                  content: "3-1",
-                },
-                {
-                  content: "3-1",
-                },
-                {
-                  content: "3-1",
-                  bg: "",
-                },
-              ],
-            },
-            {
-              content: "level3",
-            },
-            {
-              content: "level3",
-            },
-          ],
-        },
-        {
-          content:
-            "child2\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line",
-          children: [
-            {
-              content: "2-1",
-            },
-            {
-              content: "2-2",
-            },
-          ],
-        },
-        {
-          content: "child3",
-          children: [
-            {
-              content: "3-1",
-            },
-          ],
-        },
-      ],
+              {
+                content: "level3",
+              },
+              {
+                content: "level3",
+              },
+            ],
+          },
+          {
+            content:
+              "child2\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line\nnew line",
+            children: [
+              {
+                content: "2-1",
+              },
+              {
+                content: "2-2",
+              },
+            ],
+          },
+          {
+            content: "child3",
+            children: [
+              {
+                content: "3-1",
+              },
+            ],
+          },
+        ],
+      },
     };
 
-    const d = buildTree(data);
+    const d = build(data);
     cvs.height = d.treeHeight + 100;
     console.log(d);
     cvs.width = window.innerWidth;
-    buildTree(data);
+    build(data);
   </script>
 </html>

@@ -85,15 +85,21 @@ interface IProcessedImageContent {
   padding: IPadding;
 }
 
+interface IRoot {
+  globalStyle: IStyle;
+  connectionStyle: IConnectionStyle;
+  node: INode;
+}
+
 function connect(
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  style?: IConnectionStyle,
+  style?: IConnectionStyle
 ) {
-  const cvs = <HTMLCanvasElement> document.getElementById("c");
-  const ctx = <CanvasRenderingContext2D> cvs.getContext("2d");
+  const cvs = <HTMLCanvasElement>document.getElementById("c");
+  const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
   ctx.strokeStyle = style.color;
   ctx.lineWidth = style.width;
   ctx.beginPath();
@@ -107,11 +113,11 @@ function drawRect(
   y: number,
   content: string,
   style: IProcessedStyle,
-  image: IProcessedImageContent,
+  image: IProcessedImageContent
 ): IDrawResult {
   const splittedText = content.split("\n");
-  const cvs = <HTMLCanvasElement> document.getElementById("c");
-  const ctx = <CanvasRenderingContext2D> cvs.getContext("2d");
+  const cvs = <HTMLCanvasElement>document.getElementById("c");
+  const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
   ctx.beginPath();
 
   ctx.lineWidth = style.borderWidth;
@@ -123,7 +129,7 @@ function drawRect(
     style.padding,
     style.height,
     style.width,
-    image,
+    image
   );
 
   ctx.fillStyle = style.background;
@@ -133,7 +139,7 @@ function drawRect(
     y,
     drawInfo.width,
     drawInfo.height - NODE_PADDING,
-    style.radius,
+    style.radius
   );
 
   ctx.fillStyle = style.foreground;
@@ -141,7 +147,7 @@ function drawRect(
     ctx.fillText(
       splittedText[i],
       x + style.padding.left,
-      y + (i + 1) * drawInfo.textHeight + style.padding.top,
+      y + (i + 1) * drawInfo.textHeight + style.padding.top
     );
   }
   const currentY = y + splittedText.length * drawInfo.textHeight;
@@ -153,7 +159,7 @@ function drawRect(
       x + image.padding.left,
       currentY + image.padding.top + style.padding.bottom,
       image.width,
-      image.height,
+      image.height
     );
   };
   const result: IDrawResult = {
@@ -171,11 +177,11 @@ function calcRect(
   padding: IPadding,
   height: number,
   width: number,
-  image: IProcessedImageContent | undefined,
+  image: IProcessedImageContent | undefined
 ): IDrawInfo {
   const splittedText = content.split("\n");
-  const cvs = <HTMLCanvasElement> document.getElementById("c");
-  const ctx = <CanvasRenderingContext2D> cvs.getContext("2d");
+  const cvs = <HTMLCanvasElement>document.getElementById("c");
+  const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
   ctx.font = font;
   const measure = ctx.measureText(content);
   let textWidth = 0;
@@ -189,11 +195,14 @@ function calcRect(
   let nodewidth = width;
   let nodeheight = height;
   const textHeight =
-    (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
-    1.5;
+    (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) * 1.5;
 
   if (!width) {
-    nodewidth = textWidth + padding.left + padding.right + image.padding.left +
+    nodewidth =
+      textWidth +
+      padding.left +
+      padding.right +
+      image.padding.left +
       image.padding.right;
     if (image.width > nodewidth) {
       nodewidth = image.width;
@@ -201,7 +210,8 @@ function calcRect(
   }
 
   if (!height) {
-    nodeheight = textHeight * splittedText.length +
+    nodeheight =
+      textHeight * splittedText.length +
       splittedText.length +
       padding.top +
       padding.bottom +
@@ -222,6 +232,8 @@ function buildTree(
   node: INode,
   baseX: number | undefined,
   baseY: number | undefined,
+  defaults: IProcessedStyle,
+  defaultConnectionStyle: IConnectionStyle
 ) {
   if (!baseX) {
     baseX = 50;
@@ -229,12 +241,8 @@ function buildTree(
   if (!baseY) {
     baseY = 10;
   }
-  let connectionStyle;
-  if (!node.connectionStyle) {
-    connectionStyle = { width: "1", color: "#1e1e1e" };
-  } else {
-    connectionStyle = node.connectionStyle;
-  }
+  let connectionStyle = defaultConnectionStyle;
+  connectionStyle = { ...defaultConnectionStyle, ...node.connectionStyle };
 
   let treeHeight = 0;
 
@@ -259,15 +267,15 @@ function buildTree(
     };
   }
 
-  const style = processInitialStyle(node.style);
+  const style = processInitialStyle(node.style, defaults);
 
   const thisNode = calcRect(
     node.content,
     style.font,
-    <IPadding> style.padding,
+    <IPadding>style.padding,
     style.height,
     style.width,
-    <IProcessedImageContent> image,
+    <IProcessedImageContent>image
   );
   const connectPoints = [];
   if (node.children) {
@@ -277,6 +285,8 @@ function buildTree(
         childNode,
         baseX + thisNode.width + NODE_X_PADDING,
         treeHeight + baseY,
+        defaults,
+        defaultConnectionStyle
       );
       treeHeight += info.treeHeight + info.selfHeight;
       connectPoints.push(info.connectPoint);
@@ -289,7 +299,7 @@ function buildTree(
       baseY + treeHeight / 2 + thisNode.height / 2,
       baseX + thisNode.width + NODE_X_PADDING - 1,
       point,
-      connectionStyle,
+      connectionStyle
     );
   }
 
@@ -298,7 +308,7 @@ function buildTree(
     baseY + treeHeight / 2,
     node.content,
     style,
-    <IProcessedImageContent> image,
+    <IProcessedImageContent>image
   );
   return {
     treeHeight: treeHeight,
@@ -307,21 +317,26 @@ function buildTree(
   };
 }
 
-function processInitialStyle(style: IStyle): IProcessedStyle {
-  let font: string = "20px TimesNewRoman";
-  let innerPadding: IPadding = {
-    top: 5,
-    left: 5,
-    bottom: 5,
-    right: 5,
-  };
+function processInitialStyle(
+  style: IStyle,
+  defaults?: IProcessedStyle
+): IProcessedStyle {
+  let font: string = defaults ? defaults.font : "20px TimesNewRoman";
+  let innerPadding: IPadding = defaults
+    ? defaults.padding
+    : {
+        top: 5,
+        left: 5,
+        bottom: 5,
+        right: 5,
+      };
   let height: number | undefined;
   let width: number | undefined;
-  let radius = 10;
-  let borderColor = "black";
-  let borderWidth = 1;
-  let background = "white";
-  let foreground = "black";
+  let radius = defaults ? defaults.radius : 10;
+  let borderColor = defaults ? defaults.borderColor : "black";
+  let borderWidth = defaults ? defaults.borderWidth : 1;
+  let background = defaults ? defaults.background : "white";
+  let foreground = defaults ? defaults.foreground : "black";
   if (style) {
     if (style.font) {
       font = style.font;
@@ -356,7 +371,7 @@ function processInitialStyle(style: IStyle): IProcessedStyle {
   }
   return {
     font: font,
-    padding: <IPadding> innerPadding,
+    padding: <IPadding>innerPadding,
     height: height,
     width: width,
     radius: radius,
@@ -373,7 +388,7 @@ function roundedRect(
   y: number,
   width: number,
   height: number,
-  radius: IRadiusObject | number = 5,
+  radius: IRadiusObject | number = 5
 ) {
   if (typeof radius === "number") {
     radius = { tl: radius, tr: radius, br: radius, bl: radius };
@@ -391,7 +406,7 @@ function roundedRect(
     x + width,
     y + height,
     x + width - radius.br,
-    y + height,
+    y + height
   );
   ctx.lineTo(x + radius.bl, y + height);
   ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
@@ -401,4 +416,15 @@ function roundedRect(
 
   ctx.fill();
   ctx.stroke();
+}
+
+function build(root: IRoot) {
+  const style = processInitialStyle(root.globalStyle);
+  return buildTree(
+    root.node,
+    undefined,
+    undefined,
+    style,
+    root.connectionStyle
+  );
 }
