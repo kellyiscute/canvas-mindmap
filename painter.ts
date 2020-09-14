@@ -109,6 +109,7 @@ function connect(
 }
 
 function drawRect(
+  ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   content: string,
@@ -116,8 +117,6 @@ function drawRect(
   image: IProcessedImageContent
 ): IDrawResult {
   const splittedText = content.split("\n");
-  const cvs = <HTMLCanvasElement>document.getElementById("c");
-  const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
   ctx.beginPath();
 
   ctx.lineWidth = style.borderWidth;
@@ -229,6 +228,7 @@ function calcRect(
 }
 
 function buildTree(
+  ctx: CanvasRenderingContext2D,
   node: INode,
   baseX: number | undefined,
   baseY: number | undefined,
@@ -282,6 +282,7 @@ function buildTree(
     let info: ITreeBuildResult;
     for (const childNode of node.children) {
       info = buildTree(
+        ctx,
         childNode,
         baseX + thisNode.width + NODE_X_PADDING,
         treeHeight + baseY,
@@ -304,6 +305,7 @@ function buildTree(
   }
 
   drawRect(
+    ctx,
     baseX,
     baseY + treeHeight / 2,
     node.content,
@@ -418,9 +420,10 @@ function roundedRect(
   ctx.stroke();
 }
 
-function build(root: IRoot) {
+function build(ctx: CanvasRenderingContext2D, root: IRoot) {
   const style = processInitialStyle(root.globalStyle);
   return buildTree(
+    ctx,
     root.node,
     undefined,
     undefined,

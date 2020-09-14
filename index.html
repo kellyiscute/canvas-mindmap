@@ -12,6 +12,7 @@
   </body>
   <script>
     const cvs = document.getElementById("c");
+    const ctx = cvs.getContext("2d");
 
     const data = {
       globalStyle: {
@@ -111,10 +112,10 @@
       },
     };
 
-    const d = build(data);
+    const d = build(ctx, data);
     cvs.height = d.treeHeight + 100;
     console.log(d);
     cvs.width = window.innerWidth;
-    build(data);
+    build(ctx, data);
   </script>
 </html>
