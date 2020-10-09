@@ -15,24 +15,29 @@
     const ctx = cvs.getContext("2d");
 
     const data = {
+      xPadding: 200,
+      yPadding: 10,
       globalStyle: {
-        background: "#1e1e1e",
-        foreground: "white",
-        borderColor: "#9cdcfe",
-        borderWidth: "2",
+        background: "white",
+        foreground: "black",
+        borderColor: "blue",
+        borderWidth: 5,
         font: "20px Calibri",
         padding: 10,
-        radius: 20,
+        radius: 10,
       },
       connectionStyle: {
-        width: 2,
-        color: "skyblue",
+        width: 3,
+        color: "black",
       },
       node: {
         content: "main node",
         children: [
           {
             content: "child1",
+            hotSpot: {
+              action: "draw",
+            },
             children: [
               {
                 connectionStyle: {
@@ -53,10 +58,11 @@
                       radius: 20,
                     },
                     image: {
-                      src: "下载.png",
+                      src:
+                        "https://pic2.zhimg.com/v2-4e96f1110cb872407e837d4fc1440f96_1440w.jpg?source=172ae18b",
                       height: 100,
                       width: 100,
-                      padding: 0,
+                      padding: { top: 10, right: 0, bottom: -5, left: 10 },
                     },
                   },
                   {
@@ -112,10 +118,25 @@
       },
     };
 
-    const d = build(ctx, data);
+    const p = new painter();
+    const d = p.build(ctx, data);
     cvs.height = d.treeHeight + 100;
     console.log(d);
     cvs.width = window.innerWidth;
-    build(ctx, data);
+    p.build(ctx, data);
+
+    let currentHotspot;
+
+    document.getElementById("c").onmousemove = (e) => {
+      currentHotspot = p.getCurrentHotSpot({ x: e.x, y: e.y });
+      if (currentHotspot != undefined) {
+        document.getElementById("c").style.cursor = "pointer";
+      } else {
+        document.getElementById("c").style.cursor = "default";
+      }
+    };
+    document.getElementById("c").onclick = () => {
+      console.log(currentHotspot);
+    };
   </script>
 </html>
