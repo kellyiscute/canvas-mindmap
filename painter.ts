@@ -45,7 +45,7 @@ interface INode {
   content: string;
   style?: IStyle;
   connectionStyle?: IConnectionStyle;
-  image?: IImageContent;
+  image?: number;
   hotSpot?: IHotSpot;
   children?: INode[];
 }
@@ -71,18 +71,24 @@ interface ITreeBuildResult {
   hotspots: IHotSpot[];
 }
 
-interface IImageContent {
+interface IImageRes {
   src: string;
-  height: number;
-  width: number;
   padding: IPadding | number;
+  width: number;
+  height: number;
+  ImageObject?: any;
 }
 
-interface IProcessedImageContent {
+interface IProcessedImageRes {
   src: string;
-  height: number;
-  width: number;
   padding: IPadding;
+  width: number;
+  height: number;
+  ImageObject: any;
+}
+
+interface IImages {
+  [id: string]: IImageRes;
 }
 
 interface IRoot {
@@ -90,6 +96,7 @@ interface IRoot {
   connectionStyle: IConnectionStyle;
   xPadding: number;
   yPadding: number;
+  images: IImages;
   node: INode;
 }
 
@@ -116,8 +123,47 @@ class painter {
   NODE_X_PADDING: number;
   NODE_PADDING: number;
   hotSpots: IHotSpot[];
+  scale: number;
+  images: IImages;
+  globalStyle: IProcessedStyle;
+  data: IRoot;
+  imageLoaded: boolean;
 
-  constructor() {}
+  constructor(root: IRoot) {
+    this.imageLoaded = false;
+    this.scale = 1;
+    this.hotSpots = [];
+    this.data = root;
+    this.globalStyle = this.processInitialStyle(root.globalStyle);
+    this.NODE_PADDING = root.yPadding;
+    this.NODE_X_PADDING = root.xPadding;
+    this.images = root.images;
+  }
+
+  initImg(onLoaded: CallableFunction) {
+    let img: HTMLImageElement;
+    for (const imgId of Object.keys(this.images)) {
+      const imgRes = this.images[imgId];
+      if (!imgRes.padding) {
+        imgRes.padding = 0;
+      }
+      if (typeof imgRes.padding == "number") {
+        imgRes.padding = {
+          top: imgRes.padding,
+          left: imgRes.padding,
+          right: imgRes.padding,
+          bottom: imgRes.padding,
+        };
+      }
+      img = new Image(imgRes.width, imgRes.height);
+      img.src = imgRes.src;
+      imgRes.ImageObject = img;
+      img.onload = () => {
+        this.imageLoaded = true;
+        onLoaded();
+      };
+    }
+  }
 
   connect(
     x1: number,
@@ -142,7 +188,7 @@ class painter {
     y: number,
     content: string,
     style: IProcessedStyle,
-    image: IProcessedImageContent
+    image: IProcessedImageRes
   ): IDrawResult {
     const hotspots: IHotSpot[] = [];
 
@@ -184,28 +230,27 @@ class painter {
       );
     }
     const currentY = y + splittedText.length * drawInfo.textHeight;
-    const img = new Image(image.width, image.height);
-    img.src = image.src;
-    const imageX = x + image.padding.left;
-    const imageY = currentY + image.padding.top + style.padding.bottom;
-    img.onload = function () {
-      ctx.drawImage(img, imageX, imageY, image.width, image.height);
-    };
-    hotspots.push({
-      rect: {
-        topLeftCorner: {
-          x: imageX,
-          y: imageY,
-        },
-        bottomRightCorner: {
-          x: imageX + image.width,
-          y: imageY + image.height,
-        },
-      },
-      triggerType: "image",
-      action: "bigImage",
-      imgSrc: image.src,
-    });
+    if (image) {
+      const imageX = x + image.padding.left;
+      const imageY = currentY + image.padding.top + style.padding.bottom;
+      ctx.drawImage(
+        image.ImageObject,
+        imageX,
+        imageY,
+        image.width,
+        image.height
+      );
+      hotspots.push({
+        rect: this.getRealRect(
+          { x: imageX, y: imageY },
+          image.width,
+          image.height
+        ),
+        triggerType: "image",
+        action: "bigImage",
+        imgSrc: image.src,
+      });
+    }
     const result: IDrawResult = {
       x: x,
       y: y,
@@ -223,7 +268,7 @@ class painter {
     height: number,
     width: number,
     borderWidth: number,
-    image: IProcessedImageContent | undefined
+    image: IProcessedImageRes | undefined
   ): IDrawInfo {
     const splittedText = content.split("\n");
     const cvs = <HTMLCanvasElement>document.getElementById("c");
@@ -245,15 +290,16 @@ class painter {
       1.5;
 
     if (!width) {
-      nodewidth =
-        textWidth +
-        padding.left +
-        padding.right +
-        (image.src ? image.padding.left : 0) +
-        (image.src ? image.padding.right : 0) +
-        borderWidth * 2;
-      if (image.width > nodewidth) {
-        nodewidth = image.width;
+      nodewidth = borderWidth * 2;
+      const textSpace = textWidth + padding.left + padding.right;
+      const imageSpace =
+        (image ? image.padding.left : 0) +
+        (image ? image.padding.right : 0) +
+        (image ? image.width : 0);
+      if (imageSpace > textSpace) {
+        nodewidth += imageSpace;
+      } else {
+        nodewidth += textSpace;
       }
     }
 
@@ -262,9 +308,9 @@ class painter {
         textHeight * splittedText.length +
         padding.top +
         padding.bottom +
-        image.height +
-        (image.src ? image.padding.top : 0) +
-        (image.src ? image.padding.bottom : 0) +
+        (image ? image.height : 0) +
+        (image ? image.padding.top : 0) +
+        (image ? image.padding.bottom : 0) +
         borderWidth * 2 +
         2;
     }
@@ -277,13 +323,21 @@ class painter {
     return result;
   }
 
+  getRealRect({ x, y }: IPoint, width: number, height: number): IRect {
+    return {
+      topLeftCorner: { x: x * this.scale, y: y * this.scale },
+      bottomRightCorner: {
+        x: x * this.scale + width * this.scale,
+        y: y * this.scale + height * this.scale,
+      },
+    };
+  }
+
   buildTree(
     ctx: CanvasRenderingContext2D,
     node: INode,
     baseX: number | undefined,
-    baseY: number | undefined,
-    defaults: IProcessedStyle,
-    defaultConnectionStyle: IConnectionStyle
+    baseY: number | undefined
   ): ITreeBuildResult {
     let hotSpots: IHotSpot[] = [];
 
@@ -293,33 +347,24 @@ class painter {
     if (!baseY) {
       baseY = 10;
     }
-    let connectionStyle = defaultConnectionStyle;
-    connectionStyle = { ...defaultConnectionStyle, ...node.connectionStyle };
+    let connectionStyle = this.data.connectionStyle;
+    connectionStyle = { ...this.data.connectionStyle, ...node.connectionStyle };
 
     let treeHeight = 0;
 
-    let image: IImageContent = node.image;
-    if (!node.image) {
-      image = {
-        width: 0,
-        height: 0,
-        src: "",
-        padding: 10,
-      };
-    }
-    if (!image.padding) {
-      image.padding = 0;
-    }
-    if (typeof image.padding == "number") {
-      image.padding = {
-        top: image.padding,
-        left: image.padding,
-        right: image.padding,
-        bottom: image.padding,
-      };
+    let image: IProcessedImageRes = <IProcessedImageRes>this.images[node.image];
+    if (image) {
+      if (typeof image.padding == "number") {
+        image.padding = {
+          top: image.padding,
+          left: image.padding,
+          right: image.padding,
+          bottom: image.padding,
+        };
+      }
     }
 
-    const style = this.processInitialStyle(node.style, defaults);
+    const style = this.processInitialStyle(node.style, this.globalStyle);
 
     const thisNode = this.calcRect(
       node.content,
@@ -328,7 +373,7 @@ class painter {
       style.height,
       style.width,
       style.borderWidth,
-      <IProcessedImageContent>image
+      image
     );
     const connectPoints = [];
     if (node.children) {
@@ -338,9 +383,7 @@ class painter {
           ctx,
           childNode,
           baseX + thisNode.width + this.NODE_X_PADDING,
-          treeHeight + baseY,
-          defaults,
-          defaultConnectionStyle
+          treeHeight + baseY
         );
         treeHeight += info.treeHeight + info.selfHeight;
         connectPoints.push(info.connectPoint);
@@ -366,18 +409,16 @@ class painter {
       baseY + treeHeight / 2,
       node.content,
       style,
-      <IProcessedImageContent>image
+      image
     );
     hotSpots = [...hotSpots, ...drawResult.hotSpots];
     if (node.hotSpot) {
       hotSpots.push(<IHotSpot>{
-        rect: {
-          topLeftCorner: { x: drawResult.x, y: drawResult.y },
-          bottomRightCorner: {
-            x: drawResult.x + drawResult.width,
-            y: drawResult.y + drawResult.height,
-          },
-        },
+        rect: this.getRealRect(
+          { x: drawResult.x, y: drawResult.y },
+          drawResult.width,
+          drawResult.height
+        ),
         triggerType: "node",
         ...node.hotSpot,
       });
@@ -510,17 +551,24 @@ class painter {
     return undefined;
   }
 
-  build(ctx: CanvasRenderingContext2D, root: IRoot) {
-    const style = this.processInitialStyle(root.globalStyle);
-    this.NODE_PADDING = root.yPadding;
-    this.NODE_X_PADDING = root.xPadding;
+  build(
+    ctx: CanvasRenderingContext2D,
+    scale: number,
+    xOffset: number,
+    yOffset: number
+  ) {
+    if (typeof xOffset == "undefined") {
+      xOffset = 0;
+    }
+    if (typeof yOffset == "undefined") {
+      yOffset = 0;
+    }
+    this.scale = scale;
     const result = this.buildTree(
       ctx,
-      root.node,
-      undefined,
-      undefined,
-      style,
-      root.connectionStyle
+      this.data.node,
+      50 + xOffset,
+      50 + yOffset
     );
     this.hotSpots = result.hotspots;
     return result;

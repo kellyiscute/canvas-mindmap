@@ -8,7 +8,7 @@
   <script src="painter.js"></script>
 
   <body>
-    <canvas id="c" height="300" width="300"></canvas>
+    <canvas id="c"></canvas>
   </body>
   <script>
     const cvs = document.getElementById("c");
@@ -25,6 +25,15 @@
         font: "20px Calibri",
         padding: 10,
         radius: 10,
+      },
+      images: {
+        1: {
+          src:
+            "https://pic2.zhimg.com/v2-4e96f1110cb872407e837d4fc1440f96_1440w.jpg?source=172ae18b",
+          height: 100,
+          width: 100,
+          padding: { top: 10, right: 0, bottom: -5, left: 30 },
+        },
       },
       connectionStyle: {
         width: 3,
@@ -47,7 +56,7 @@
                 content: "level3\nnew line",
                 children: [
                   {
-                    content: "with style",
+                    content: "TYPESCRIPT!!",
                     style: {
                       background: "#1e1e1e",
                       foreground: "white",
@@ -57,13 +66,7 @@
                       padding: 10,
                       radius: 20,
                     },
-                    image: {
-                      src:
-                        "https://pic2.zhimg.com/v2-4e96f1110cb872407e837d4fc1440f96_1440w.jpg?source=172ae18b",
-                      height: 100,
-                      width: 100,
-                      padding: { top: 10, right: 0, bottom: -5, left: 10 },
-                    },
+                    image: 1,
                   },
                   {
                     content: "3-1yyy",
@@ -118,25 +121,47 @@
       },
     };
 
-    const p = new painter();
-    const d = p.build(ctx, data);
-    cvs.height = d.treeHeight + 100;
-    console.log(d);
-    cvs.width = window.innerWidth;
-    p.build(ctx, data);
+    cvs.height = window.innerHeight - 20;
+    cvs.width = window.innerWidth - 100;
+
+    const p = new painter(data);
+    p.initImg(() => {
+      rebuild();
+    });
+    ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
+    let offsetY = 0;
+    function rebuild() {
+      if (p.imageLoaded) {
+        p.build(ctx, 1, 0, offsetY);
+      }
+    }
+
+    rebuild();
 
     let currentHotspot;
 
-    document.getElementById("c").onmousemove = (e) => {
+    cvs.onmousemove = (e) => {
       currentHotspot = p.getCurrentHotSpot({ x: e.x, y: e.y });
       if (currentHotspot != undefined) {
-        document.getElementById("c").style.cursor = "pointer";
+        cvs.style.cursor = "pointer";
       } else {
-        document.getElementById("c").style.cursor = "default";
+        cvs.style.cursor = "default";
       }
     };
-    document.getElementById("c").onclick = () => {
+
+    window.onresize = () => {
+      rebuild();
+    };
+
+    cvs.onclick = () => {
       console.log(currentHotspot);
+    };
+    cvs.onwheel = (e) => {
+      offsetY -= e.deltaY;
+      ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
+      rebuild();
+      if (e.ctrlKey) {
+      }
     };
   </script>
 </html>
