@@ -420,6 +420,7 @@ class painter {
           drawResult.height
         ),
         triggerType: "node",
+        nodeContent: node.content,
         ...node.hotSpot,
       });
     }

@@ -131,6 +131,7 @@
     ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
     let offsetY = 0;
     function rebuild() {
+      ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
       if (p.imageLoaded) {
         p.build(ctx, 1, 0, offsetY);
       }
@@ -139,7 +140,7 @@
     rebuild();
 
     let currentHotspot;
-
+    let enableDrag;
     cvs.onmousemove = (e) => {
       currentHotspot = p.getCurrentHotSpot({ x: e.x, y: e.y });
       if (currentHotspot != undefined) {
@@ -147,14 +148,18 @@
       } else {
         cvs.style.cursor = "default";
       }
+      if (enableDrag) {
+        offsetY += e.movementY;
+        rebuild();
+      }
     };
 
     window.onresize = () => {
       rebuild();
     };
 
-    cvs.onclick = () => {
-      console.log(currentHotspot);
+    cvs.onclick = (e) => {
+      if (e.movementY == 0) console.log(currentHotspot);
     };
     cvs.onwheel = (e) => {
       offsetY -= e.deltaY;
@@ -162,6 +167,14 @@
       rebuild();
       if (e.ctrlKey) {
       }
+    };
+    let lastX;
+    let lastY;
+    cvs.onmousedown = () => {
+      enableDrag = true;
+    };
+    cvs.onmouseup = () => {
+      enableDrag = false;
     };
   </script>
 </html>
