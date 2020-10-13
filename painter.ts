@@ -6,28 +6,40 @@ interface IPadding {
 }
 
 interface IStyle {
-  background?: string;
-  foreground?: string;
-  borderColor?: string;
-  borderWidth?: number;
+  colors: IColorDefinition;
   font?: string;
+  borderWidth: number;
   padding?: number | IPadding;
   radius?: number;
   height?: number;
   width?: number;
 }
 
-interface IProcessedStyle {
-  background: string;
-  foreground: string;
-  borderColor: string;
+interface IGlobalStyle {
+  predefinedColors: IColorDefinition[];
+  defaultColor: IColorDefinition;
   borderWidth: number;
-  font: string;
-  padding: IPadding;
-  radius: number;
-  height: number | undefined;
-  width: number | undefined;
+  font?: string;
+  padding?: number | IPadding;
+  radius?: number;
+  height?: number;
+  width?: number;
+  hoverBorder: IHoverBorder;
 }
+
+interface IHoverBorder {
+  width: number;
+  color: string;
+}
+
+// interface IProcessedStyle {
+//   colors: IColorDefinition;
+//   font: string;
+//   padding: IPadding;
+//   radius: number;
+//   height: number | undefined;
+//   width: number | undefined;
+// }
 
 interface IConnectionStyle {
   color?: string;
@@ -42,6 +54,7 @@ interface IRadiusObject {
 }
 
 interface INode {
+  nodeId: string;
   content: string;
   style?: IStyle;
   connectionStyle?: IConnectionStyle;
@@ -92,8 +105,7 @@ interface IImages {
 }
 
 interface IRoot {
-  globalStyle: IStyle;
-  connectionStyle: IConnectionStyle;
+  globalStyle: IGlobalStyle;
   xPadding: number;
   yPadding: number;
   images: IImages;
@@ -119,25 +131,48 @@ interface IHotSpot {
   imgSrc?: string;
 }
 
+interface IHoverSpot {
+  nodeId: string;
+  rect: IRect;
+}
+
+interface IColorDefinition {
+  border: string;
+  background: string;
+  titleBackground: string;
+  childConnectionColor: IConnectionStyle;
+  textColor: string;
+}
+
 class painter {
   NODE_X_PADDING: number;
   NODE_PADDING: number;
   hotSpots: IHotSpot[];
+  hoverSpots: IHoverSpot[];
   scale: number;
   images: IImages;
-  globalStyle: IProcessedStyle;
+  globalStyle: IGlobalStyle;
   data: IRoot;
   imageLoaded: boolean;
+  ctx: CanvasRenderingContext2D;
+  offsetX: number;
+  offsetY: number;
 
-  constructor(root: IRoot) {
+  constructor(ctx: CanvasRenderingContext2D, root: IRoot) {
+    this.ctx = ctx;
     this.imageLoaded = false;
     this.scale = 1;
     this.hotSpots = [];
+    this.hoverSpots = [];
     this.data = root;
-    this.globalStyle = this.processInitialStyle(root.globalStyle);
+    this.globalStyle = root.globalStyle;
     this.NODE_PADDING = root.yPadding;
     this.NODE_X_PADDING = root.xPadding;
+    this.offsetX = 0;
+    this.offsetY = 0;
     this.images = root.images;
+    this.data.node = this.prepareNodeId(this.data.node);
+    console.log(this.data.node);
   }
 
   initImg(onLoaded: CallableFunction) {
@@ -172,68 +207,74 @@ class painter {
     y2: number,
     style?: IConnectionStyle
   ) {
-    const cvs = <HTMLCanvasElement>document.getElementById("c");
-    const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
-    ctx.strokeStyle = style.color;
-    ctx.lineWidth = style.width;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 3, y1, x1, y2, x2, y2);
-    ctx.stroke();
+    this.ctx.strokeStyle = style.color;
+    this.ctx.lineWidth = style.width;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x1, y1);
+    this.ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 5, y1, x1 + 50, y2, x2, y2);
+    this.ctx.stroke();
   }
 
   drawRect(
-    ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     content: string,
-    style: IProcessedStyle,
-    image: IProcessedImageRes
+    style: IStyle,
+    image: IProcessedImageRes,
+    hover: boolean
   ): IDrawResult {
     const hotspots: IHotSpot[] = [];
 
     const splittedText = content.split("\n");
-    ctx.beginPath();
+    this.ctx.beginPath();
 
-    ctx.lineWidth = style.borderWidth;
-    ctx.strokeStyle = style.borderColor;
+    this.ctx.lineWidth = style.borderWidth;
+    this.ctx.strokeStyle = style.colors.border;
 
-    const drawInfo = this.calcRect(
-      content,
-      style.font,
-      style.padding,
-      style.height,
-      style.width,
-      style.borderWidth,
-      image
-    );
+    const drawInfo = this.calcRect(content, style, image);
 
-    ctx.fillStyle = style.background;
+    this.ctx.fillStyle = style.colors.background;
     this.roundedRect(
-      ctx,
       x + style.borderWidth / 2,
       y + style.borderWidth / 2,
       drawInfo.width - style.borderWidth / 2,
       drawInfo.height - this.NODE_PADDING - style.borderWidth / 2,
       style.radius
     );
+    if (hover) {
+      this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
+      this.ctx.lineWidth = this.globalStyle.hoverBorder.width;
+      this.roundedRect(
+        x - this.globalStyle.hoverBorder.width / 2,
+        y - this.globalStyle.hoverBorder.width / 2,
+        drawInfo.width +
+          style.borderWidth / 2 +
+          this.globalStyle.hoverBorder.width,
+        drawInfo.height +
+          style.borderWidth / 2 -
+          this.NODE_PADDING +
+          this.globalStyle.hoverBorder.width,
+        style.radius +
+          this.globalStyle.hoverBorder.width +
+          style.borderWidth / 2,
+        false
+      );
+    }
 
-    ctx.fillStyle = style.foreground;
+    this.ctx.fillStyle = style.colors.textColor;
+    const padding = <IPadding>style.padding;
     for (let i = 0; i < splittedText.length; i++) {
-      ctx.fillText(
+      this.ctx.fillText(
         splittedText[i],
-        x + style.padding.left + style.borderWidth,
-        y +
-          (i + 1) * drawInfo.textHeight +
-          style.padding.top +
-          style.borderWidth
+        x + padding.left + style.borderWidth,
+        y + (i + 1) * drawInfo.textHeight + padding.top + style.borderWidth
       );
     }
     const currentY = y + splittedText.length * drawInfo.textHeight;
     if (image) {
       const imageX = x + image.padding.left;
-      const imageY = currentY + image.padding.top + style.padding.bottom;
-      ctx.drawImage(
+      const imageY = currentY + image.padding.top + padding.bottom;
+      this.ctx.drawImage(
         image.ImageObject,
         imageX,
         imageY,
@@ -263,34 +304,29 @@ class painter {
 
   calcRect(
     content: string,
-    font: string,
-    padding: IPadding,
-    height: number,
-    width: number,
-    borderWidth: number,
+    style: IStyle,
     image: IProcessedImageRes | undefined
   ): IDrawInfo {
     const splittedText = content.split("\n");
-    const cvs = <HTMLCanvasElement>document.getElementById("c");
-    const ctx = <CanvasRenderingContext2D>cvs.getContext("2d");
-    ctx.font = font;
-    const measure = ctx.measureText(content);
+    this.ctx.font = style.font;
+    const measure = this.ctx.measureText(content);
     let textWidth = 0;
     for (const content of splittedText) {
-      const w = ctx.measureText(content).width;
+      const w = this.ctx.measureText(content).width;
       if (w > textWidth) {
         textWidth = w;
       }
     }
 
-    let nodewidth = width;
-    let nodeheight = height;
+    let nodewidth = style.width;
+    let nodeheight = style.height;
     const textHeight =
       (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
       1.5;
 
-    if (!width) {
-      nodewidth = borderWidth * 2;
+    const padding = <IPadding>style.padding;
+    if (!style.width) {
+      nodewidth = style.borderWidth * 2;
       const textSpace = textWidth + padding.left + padding.right;
       const imageSpace =
         (image ? image.padding.left : 0) +
@@ -303,7 +339,7 @@ class painter {
       }
     }
 
-    if (!height) {
+    if (!style.height) {
       nodeheight =
         textHeight * splittedText.length +
         padding.top +
@@ -311,7 +347,7 @@ class painter {
         (image ? image.height : 0) +
         (image ? image.padding.top : 0) +
         (image ? image.padding.bottom : 0) +
-        borderWidth * 2 +
+        style.borderWidth * 2 +
         2;
     }
 
@@ -324,22 +360,33 @@ class painter {
   }
 
   getRealRect({ x, y }: IPoint, width: number, height: number): IRect {
-    return {
+    const result = {
       topLeftCorner: { x: x * this.scale, y: y * this.scale },
       bottomRightCorner: {
         x: x * this.scale + width * this.scale,
         y: y * this.scale + height * this.scale,
       },
     };
+    console.log(result);
+    return result;
   }
 
   buildTree(
-    ctx: CanvasRenderingContext2D,
     node: INode,
     baseX: number | undefined,
-    baseY: number | undefined
+    baseY: number | undefined,
+    level?: number,
+    hoverEffectNodeId?: string
   ): ITreeBuildResult {
     let hotSpots: IHotSpot[] = [];
+    if (typeof level == "undefined") {
+      level = 0;
+    }
+
+    const currentColorLevel: IColorDefinition =
+      this.globalStyle.predefinedColors.length > level
+        ? this.globalStyle.predefinedColors[level]
+        : this.globalStyle.defaultColor;
 
     if (!baseX) {
       baseX = 50;
@@ -347,8 +394,11 @@ class painter {
     if (!baseY) {
       baseY = 10;
     }
-    let connectionStyle = this.data.connectionStyle;
-    connectionStyle = { ...this.data.connectionStyle, ...node.connectionStyle };
+    let connectionStyle = this.globalStyle.defaultColor.childConnectionColor;
+    connectionStyle = {
+      ...currentColorLevel.childConnectionColor,
+      ...node.connectionStyle,
+    };
 
     let treeHeight = 0;
 
@@ -365,25 +415,19 @@ class painter {
     }
 
     const style = this.processInitialStyle(node.style, this.globalStyle);
+    style.colors = currentColorLevel;
 
-    const thisNode = this.calcRect(
-      node.content,
-      style.font,
-      <IPadding>style.padding,
-      style.height,
-      style.width,
-      style.borderWidth,
-      image
-    );
+    const thisNode = this.calcRect(node.content, style, image);
     const connectPoints = [];
     if (node.children) {
       let info: ITreeBuildResult;
       for (const childNode of node.children) {
         info = this.buildTree(
-          ctx,
           childNode,
           baseX + thisNode.width + this.NODE_X_PADDING,
-          treeHeight + baseY
+          treeHeight + baseY,
+          level + 1,
+          hoverEffectNodeId
         );
         treeHeight += info.treeHeight + info.selfHeight;
         connectPoints.push(info.connectPoint);
@@ -404,26 +448,29 @@ class painter {
 
     // Draw parent node last to cover the head of the connections
     const drawResult = this.drawRect(
-      ctx,
       baseX,
       baseY + treeHeight / 2,
       node.content,
       style,
-      image
+      image,
+      node.nodeId == hoverEffectNodeId
     );
+    console.log({ currentId: node.nodeId, targetId: hoverEffectNodeId });
     hotSpots = [...hotSpots, ...drawResult.hotSpots];
+    const rect = this.getRealRect(
+      { x: drawResult.x, y: drawResult.y },
+      drawResult.width + style.borderWidth / 2,
+      drawResult.height - this.NODE_PADDING + style.borderWidth
+    );
     if (node.hotSpot) {
       hotSpots.push(<IHotSpot>{
-        rect: this.getRealRect(
-          { x: drawResult.x, y: drawResult.y },
-          drawResult.width,
-          drawResult.height
-        ),
+        rect,
         triggerType: "node",
         nodeContent: node.content,
         ...node.hotSpot,
       });
     }
+    this.hoverSpots.push({ rect, nodeId: node.nodeId });
     return {
       treeHeight: treeHeight,
       selfHeight: thisNode.height,
@@ -433,78 +480,58 @@ class painter {
     };
   }
 
-  processInitialStyle(
-    style: IStyle,
-    defaults?: IProcessedStyle
-  ): IProcessedStyle {
+  processInitialStyle(style: IStyle, defaults?: IGlobalStyle): IStyle {
     let font: string = defaults ? defaults.font : "20px TimesNewRoman";
-    let innerPadding: IPadding = defaults
-      ? defaults.padding
-      : {
-          top: 5,
-          left: 5,
-          bottom: 5,
-          right: 5,
-        };
+    let innerPadding: IPadding | number = defaults.padding;
+
     let height: number | undefined;
     let width: number | undefined;
     let radius = defaults ? defaults.radius : 10;
-    let borderColor = defaults ? defaults.borderColor : "black";
-    let borderWidth = defaults ? defaults.borderWidth : 1;
-    let background = defaults ? defaults.background : "white";
-    let foreground = defaults ? defaults.foreground : "black";
+    let colors = defaults.defaultColor;
+    let borderWidth = defaults.borderWidth;
+
     if (style) {
       if (style.font) {
         font = style.font;
       }
-      if (style.background) {
-        background = style.background;
-      }
-      if (style.foreground) {
-        foreground = style.foreground;
-      }
-      if (typeof style.borderWidth != "undefined") {
-        borderWidth = style.borderWidth;
-      }
-      if (style.borderColor) {
-        borderColor = style.borderColor;
-      }
       if (typeof style.radius != "undefined") {
         radius = style.radius;
       }
-      if (typeof style.padding != "undefined") {
-        if (typeof style.padding == "number") {
-          innerPadding = {
-            top: style.padding,
-            left: style.padding,
-            right: style.padding,
-            bottom: style.padding,
-          };
-        }
-      }
       height = style.height;
       width = style.width;
+      if (typeof style.borderWidth != "undefined") {
+        borderWidth = style.borderWidth;
+      }
+      if (style.padding) {
+        innerPadding = style.padding;
+      }
+    }
+    if (typeof innerPadding == "number") {
+      innerPadding = <IPadding>{
+        top: innerPadding,
+        left: innerPadding,
+        right: innerPadding,
+        bottom: innerPadding,
+      };
     }
     return {
       font,
       padding: <IPadding>innerPadding,
+      borderWidth,
       height,
       width,
       radius,
-      background,
-      foreground,
-      borderColor,
-      borderWidth,
+      colors,
     };
   }
 
   roundedRect(
-    ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     width: number,
     height: number,
-    radius: IRadiusObject | number = 5
+    radius: IRadiusObject | number = 5,
+    fill?: boolean
   ) {
     if (typeof radius === "number") {
       radius = { tl: radius, tr: radius, br: radius, bl: radius };
@@ -513,25 +540,25 @@ class painter {
       radius = { ...defaultRadii, ...radius };
     }
 
-    ctx.beginPath();
-    ctx.moveTo(x + radius.tl, y);
-    ctx.lineTo(x + width - radius.tr, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
-    ctx.lineTo(x + width, y + height - radius.br);
-    ctx.quadraticCurveTo(
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + radius.tl, y);
+    this.ctx.lineTo(x + width - radius.tr, y);
+    this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+    this.ctx.lineTo(x + width, y + height - radius.br);
+    this.ctx.quadraticCurveTo(
       x + width,
       y + height,
       x + width - radius.br,
       y + height
     );
-    ctx.lineTo(x + radius.bl, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
-    ctx.lineTo(x, y + radius.tl);
-    ctx.quadraticCurveTo(x, y, x + radius.tl, y);
-    ctx.closePath();
+    this.ctx.lineTo(x + radius.bl, y + height);
+    this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+    this.ctx.lineTo(x, y + radius.tl);
+    this.ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+    this.ctx.closePath();
 
-    ctx.fill();
-    ctx.stroke();
+    if (fill) this.ctx.fill();
+    this.ctx.stroke();
   }
 
   inRect(pos: IPoint, rect: IRect) {
@@ -543,6 +570,23 @@ class painter {
     return false;
   }
 
+  getCurrentHoverSpot(point: IPoint): IHoverSpot {
+    for (const hoverspot of this.hoverSpots) {
+      if (this.inRect(point, hoverspot.rect)) {
+        return hoverspot;
+      }
+    }
+  }
+
+  useHoverEffect(nodeId: string) {
+    this.wipe();
+    this.build(this.scale, this.offsetX, this.offsetY, nodeId);
+  }
+
+  wipe() {
+    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+  }
+
   getCurrentHotSpot(point: IPoint): IHotSpot {
     for (const hotspot of this.hotSpots) {
       if (this.inRect(point, hotspot.rect)) {
@@ -552,25 +596,36 @@ class painter {
     return undefined;
   }
 
-  build(
-    ctx: CanvasRenderingContext2D,
-    scale: number,
-    xOffset: number,
-    yOffset: number
-  ) {
+  prepareNodeId(node: INode, levelHeader?: string) {
+    if (!levelHeader) {
+      levelHeader = "0";
+    }
+    node.nodeId = levelHeader;
+    if (node.children) {
+      for (let i = 0; i < node.children.length; i++) {
+        this.prepareNodeId(node.children[i], node.nodeId + "-" + i);
+      }
+    }
+    return node;
+  }
+
+  build(scale: number, xOffset: number, yOffset: number, hoverNodeId: string) {
     if (typeof xOffset == "undefined") {
-      xOffset = 0;
+      xOffset = this.offsetX;
     }
     if (typeof yOffset == "undefined") {
-      yOffset = 0;
+      yOffset = this.offsetY;
     }
     this.scale = scale;
     const result = this.buildTree(
-      ctx,
       this.data.node,
       50 + xOffset,
-      50 + yOffset
+      50 + yOffset,
+      undefined,
+      hoverNodeId
     );
+    this.offsetX = xOffset;
+    this.offsetY = yOffset;
     this.hotSpots = result.hotspots;
     return result;
   }

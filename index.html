@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>index</title>
   </head>
+  <style>
+    * {
+      margin: 0;
+    }
+  </style>
   <script src="painter.js"></script>
 
   <body>
@@ -15,16 +20,39 @@
     const ctx = cvs.getContext("2d");
 
     const data = {
-      xPadding: 200,
-      yPadding: 10,
+      xPadding: 100,
+      yPadding: 20,
       globalStyle: {
-        background: "white",
-        foreground: "black",
-        borderColor: "blue",
-        borderWidth: 5,
-        font: "20px Calibri",
-        padding: 10,
-        radius: 10,
+        font: "16px Calibri",
+        padding: 9,
+        radius: 5,
+        borderWidth: 10,
+        predefinedColors: [
+          {
+            border: "blue",
+            background: "white",
+            titleBackground: "wheat",
+            childConnectionColor: {
+              color: "black",
+              width: 5,
+            },
+            textColor: "black",
+          },
+        ],
+        defaultColor: {
+          border: "black",
+          background: "white",
+          titleBackground: "wheat",
+          childConnectionColor: {
+            color: "black",
+            width: 5,
+          },
+          textColor: "black",
+        },
+        hoverBorder: {
+          width: 6,
+          color: "green",
+        },
       },
       images: {
         1: {
@@ -34,10 +62,6 @@
           width: 100,
           padding: { top: 10, right: 0, bottom: -5, left: 30 },
         },
-      },
-      connectionStyle: {
-        width: 3,
-        color: "black",
       },
       node: {
         content: "main node",
@@ -121,10 +145,10 @@
       },
     };
 
-    cvs.height = window.innerHeight - 20;
-    cvs.width = window.innerWidth - 100;
+    cvs.height = window.innerHeight;
+    cvs.width = window.innerWidth;
 
-    const p = new painter(data);
+    const p = new painter(ctx, data);
     p.initImg(() => {
       rebuild();
     });
@@ -133,7 +157,7 @@
     function rebuild() {
       ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
       if (p.imageLoaded) {
-        p.build(ctx, 1, 0, offsetY);
+        p.build(1, 0, offsetY);
       }
     }
 
@@ -141,6 +165,7 @@
 
     let currentHotspot;
     let enableDrag;
+    let lastHover;
     cvs.onmousemove = (e) => {
       currentHotspot = p.getCurrentHotSpot({ x: e.x, y: e.y });
       if (currentHotspot != undefined) {
@@ -152,6 +177,11 @@
         offsetY += e.movementY;
         rebuild();
       }
+      const curretnHoverSpot = p.getCurrentHoverSpot({ x: e.x, y: e.y });
+      if (curretnHoverSpot) {
+      }
+      if (curretnHoverSpot != lastHover)
+        p.useHoverEffect(curretnHoverSpot.nodeId, 0, offsetY);
     };
 
     window.onresize = () => {
