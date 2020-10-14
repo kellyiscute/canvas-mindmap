@@ -57,17 +57,27 @@ interface IRadiusObject {
 interface INode {
   nodeId: string;
   content: string;
+  textMeasure: ITextMeasure;
   link?: ILink;
   style?: IStyle;
   connectionStyle?: IConnectionStyle;
   image?: number;
   hotSpot?: IHotSpot;
+  title: string;
+  titleMeasure: ITextMeasure;
   children?: INode[];
+}
+
+interface ITextMeasure {
+  width: number;
+  totalHeight: number;
+  textHeight: number;
 }
 
 interface ILink {
   src: string;
   title: string;
+  textMeasure: ITextMeasure;
 }
 
 interface IDrawInfo {
@@ -189,11 +199,41 @@ class painter {
     node.style = style;
     this.ctx.font = style.font;
     node.content = this.wrapText(node.content, style);
+
+    node.textMeasure = this.getTextMeasure(node.content);
+
+    if (node.link) {
+      node.link.title = this.wrapText(node.link.title, style);
+      node.link.textMeasure = this.getTextMeasure(node.link.title);
+    }
+    if (node.title) {
+      node.title = this.wrapText(node.title, style);
+      node.titleMeasure = this.getTextMeasure(node.title);
+    }
     if (node.children) {
       for (const child of node.children) {
         this.prepareNode(child);
       }
     }
+  }
+
+  getTextMeasure(text: string): ITextMeasure {
+    const splittedText = text.split("\n");
+    const measure = this.ctx.measureText(splittedText[0]);
+    const textMeasure = { width: 0, textHeight: 0, totalHeight: 0 };
+    for (const content of splittedText) {
+      const w = this.ctx.measureText(content).width;
+      if (w > textMeasure.width) {
+        textMeasure.width = w;
+      }
+    }
+    const textHeight =
+      (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
+      1.5;
+    textMeasure.textHeight = textHeight;
+    textMeasure.totalHeight = textHeight * splittedText.length;
+
+    return textMeasure;
   }
 
   initImg(onLoaded: CallableFunction) {
@@ -240,26 +280,32 @@ class painter {
     x: number,
     y: number,
     drawInfo: IDrawInfo,
-    content: string,
-    style: IStyle,
-    image: IProcessedImageRes,
+    node: INode,
     hover: boolean
   ): IDrawResult {
     const hotspots: IHotSpot[] = [];
 
-    const splittedText = content.split("\n");
+    const splittedText = node.content.split("\n");
     this.ctx.beginPath();
 
-    this.ctx.lineWidth = style.borderWidth;
-    this.ctx.strokeStyle = style.colors.border;
+    this.ctx.lineWidth = node.style.borderWidth;
 
-    this.ctx.fillStyle = style.colors.background;
+    const padding = <IPadding>node.style.padding;
+    let currentY = y;
+    // draw rect
+    this.ctx.strokeStyle = node.style.colors.border;
+
+    if (!node.title) {
+      this.ctx.fillStyle = node.style.colors.titleBackground;
+    } else {
+      this.ctx.fillStyle = node.style.colors.background;
+    }
     this.roundedRect(
-      x + style.borderWidth / 2,
-      y + style.borderWidth / 2,
-      drawInfo.width - style.borderWidth / 2,
-      drawInfo.height - this.NODE_PADDING - style.borderWidth / 2,
-      style.radius
+      x + node.style.borderWidth / 2,
+      y + node.style.borderWidth / 2,
+      drawInfo.width - node.style.borderWidth / 2,
+      drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
+      node.style.radius
     );
     if (hover) {
       this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
@@ -268,32 +314,78 @@ class painter {
         x - this.globalStyle.hoverBorder.width / 2,
         y - this.globalStyle.hoverBorder.width / 2,
         drawInfo.width +
-          style.borderWidth / 2 +
+          node.style.borderWidth / 2 +
           this.globalStyle.hoverBorder.width,
         drawInfo.height +
-          style.borderWidth / 2 -
+          node.style.borderWidth / 2 -
           this.NODE_PADDING +
           this.globalStyle.hoverBorder.width,
-        style.radius +
+        node.style.radius +
           this.globalStyle.hoverBorder.width +
-          style.borderWidth / 2,
+          node.style.borderWidth / 2,
         false
       );
     }
 
-    this.ctx.fillStyle = style.colors.textColor;
-    const padding = <IPadding>style.padding;
+    if (node.title) {
+      this.ctx.fillStyle = node.style.colors.titleBackground;
+      // TODO: fill title rect
+      this.roundedRect(
+        x + node.style.borderWidth / 2,
+        y + node.style.borderWidth / 2,
+        drawInfo.width,
+        node.titleMeasure.totalHeight +
+          node.style.borderWidth +
+          padding.bottom +
+          padding.top,
+        { tl: node.style.radius, tr: node.style.radius, bl: 0, br: 0 },
+        true,
+        false
+      );
+      this.ctx.fillStyle = node.style.colors.textColor;
+      // TODO: draw title
+      const splittedTitle = node.title.split("\n");
+      for (let i = 0; i < splittedTitle.length; i++) {
+        this.ctx.fillText(
+          splittedTitle[i],
+          x + padding.left + node.style.borderWidth,
+          currentY +
+            (i + 1) * drawInfo.textHeight +
+            padding.top +
+            node.style.borderWidth
+        );
+      }
+      currentY += padding.top + node.style.borderWidth;
+      // redraw border
+      this.roundedRect(
+        x + node.style.borderWidth / 2,
+        y + node.style.borderWidth / 2,
+        drawInfo.width - node.style.borderWidth / 2,
+        drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
+        node.style.radius,
+        false
+      );
+      currentY += node.titleMeasure.totalHeight;
+    }
+    // draw content
+    this.ctx.fillStyle = node.style.colors.textColor;
     for (let i = 0; i < splittedText.length; i++) {
       this.ctx.fillText(
         splittedText[i],
-        x + padding.left + style.borderWidth,
-        y + (i + 1) * drawInfo.textHeight + padding.top + style.borderWidth
+        x + padding.left + node.style.borderWidth,
+        currentY +
+          (i + 1) * drawInfo.textHeight +
+          padding.top +
+          node.style.borderWidth
       );
     }
-    const currentY = y + splittedText.length * drawInfo.textHeight;
-    if (image) {
-      const imageX = x + image.padding.left;
-      const imageY = currentY + image.padding.top + padding.bottom;
+    currentY += splittedText.length * drawInfo.textHeight;
+    // draw image
+    if (node.image) {
+      const image = this.images[node.image];
+      const imagePadding = image ? <IPadding>image.padding : null;
+      const imageX = x + imagePadding.left;
+      const imageY = currentY + imagePadding.top + padding.bottom;
       this.ctx.drawImage(
         image.ImageObject,
         imageX,
@@ -312,6 +404,8 @@ class painter {
         imgSrc: image.src,
       });
     }
+    // TODO: draw link
+
     const result: IDrawResult = {
       x: x,
       y: y,
@@ -322,60 +416,60 @@ class painter {
     return result;
   }
 
-  calcRect(
-    content: string,
-    style: IStyle,
-    image: IProcessedImageRes | undefined,
-    link: ILink | undefined
-  ): IDrawInfo {
-    const splittedText = content.split("\n");
-    this.ctx.font = style.font;
-    const measure = this.ctx.measureText(content);
-    let textWidth = 0;
-    for (const content of splittedText) {
-      const w = this.ctx.measureText(content).width;
-      if (w > textWidth) {
-        textWidth = w;
-      }
-    }
+  calcRect(node: INode): IDrawInfo {
+    this.ctx.font = node.style.font;
+    let nodewidth = node.style.width;
+    let nodeheight = node.style.height;
 
-    let nodewidth = style.width;
-    let nodeheight = style.height;
-    const textHeight =
-      (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
-      1.5;
+    const image = this.images[node.image];
+    const imagePadding = image ? <IPadding>image.padding : null;
 
-    const padding = <IPadding>style.padding;
-    if (!style.width) {
-      nodewidth = style.borderWidth * 2;
-      const textSpace = textWidth + padding.left + padding.right;
+    const padding = <IPadding>node.style.padding;
+    if (!node.style.width) {
+      nodewidth = node.style.borderWidth * 2;
+      const textSpace = node.textMeasure.width + padding.left + padding.right;
       const imageSpace =
-        (image ? image.padding.left : 0) +
-        (image ? image.padding.right : 0) +
+        (image ? imagePadding.left : 0) +
+        (image ? imagePadding.right : 0) +
         (image ? image.width : 0);
-      if (imageSpace > textSpace) {
-        nodewidth += imageSpace;
-      } else {
-        nodewidth += textSpace;
+      let linkSpace = 0;
+      if (node.link) {
+        linkSpace = node.link.textMeasure.width + padding.left + padding.right;
       }
+      let titleSpace = 0;
+      if (node.title) {
+        titleSpace = node.titleMeasure.width + padding.left + padding.right;
+      }
+      const l: number[] = [textSpace, imageSpace, linkSpace, titleSpace];
+      let max = 0;
+      for (const num of l) {
+        if (num > max) {
+          max = num;
+        }
+      }
+      nodewidth += max;
     }
 
-    if (!style.height) {
+    if (!node.style.height) {
       nodeheight =
-        textHeight * splittedText.length +
+        node.textMeasure.totalHeight +
         padding.top +
         padding.bottom +
         (image ? image.height : 0) +
-        (image ? image.padding.top : 0) +
-        (image ? image.padding.bottom : 0) +
-        style.borderWidth * 2 +
+        (image ? imagePadding.top : 0) +
+        (image ? imagePadding.bottom : 0) +
+        node.style.borderWidth * 2 +
         2;
+      if (node.title) {
+        nodeheight +=
+          node.titleMeasure.totalHeight + padding.top + padding.bottom;
+      }
     }
 
     const result: IDrawInfo = {
       width: nodewidth,
       height: nodeheight + this.NODE_PADDING,
-      textHeight: textHeight,
+      textHeight: node.textMeasure.textHeight,
     };
     return result;
   }
@@ -439,9 +533,8 @@ class painter {
     style.colors = currentColorLevel;
 
     this.ctx.font = style.font;
-    // const wrappedContent = this.wrapText(node.content, style);
 
-    const thisNode = this.calcRect(node.content, style, image, node.link);
+    const thisNode = this.calcRect(node);
     const connectPoints = [];
     if (node.children) {
       let info: ITreeBuildResult;
@@ -475,9 +568,7 @@ class painter {
       baseX,
       baseY + treeHeight / 2,
       thisNode,
-      node.content,
-      style,
-      image,
+      node,
       node.nodeId == hoverEffectNodeId
     );
 
@@ -589,7 +680,8 @@ class painter {
     width: number,
     height: number,
     radius: IRadiusObject | number = 5,
-    fill?: boolean
+    fill: boolean = true,
+    border: boolean = true
   ) {
     if (typeof radius === "number") {
       radius = { tl: radius, tr: radius, br: radius, bl: radius };
@@ -616,7 +708,7 @@ class painter {
     this.ctx.closePath();
 
     if (fill) this.ctx.fill();
-    this.ctx.stroke();
+    if (border) this.ctx.stroke();
   }
 
   inRect(pos: IPoint, rect: IRect) {
