@@ -25,6 +25,7 @@ interface IGlobalStyle {
   height?: number;
   width?: number;
   hoverBorder: IHoverBorder;
+  maxWidth: number;
 }
 
 interface IHoverBorder {
@@ -56,11 +57,17 @@ interface IRadiusObject {
 interface INode {
   nodeId: string;
   content: string;
+  link?: ILink;
   style?: IStyle;
   connectionStyle?: IConnectionStyle;
   image?: number;
   hotSpot?: IHotSpot;
   children?: INode[];
+}
+
+interface ILink {
+  src: string;
+  title: string;
 }
 
 interface IDrawInfo {
@@ -97,7 +104,7 @@ interface IProcessedImageRes {
   padding: IPadding;
   width: number;
   height: number;
-  ImageObject: any;
+  ImageObject: HTMLImageElement;
 }
 
 interface IImages {
@@ -172,6 +179,21 @@ class painter {
     this.offsetY = 0;
     this.images = root.images;
     this.data.node = this.prepareNodeId(this.data.node);
+
+    // prepare node data
+    this.prepareNode(this.data.node);
+  }
+
+  prepareNode(node: INode) {
+    const style = this.processInitialStyle(node.style, this.globalStyle);
+    node.style = style;
+    this.ctx.font = style.font;
+    node.content = this.wrapText(node.content, style);
+    if (node.children) {
+      for (const child of node.children) {
+        this.prepareNode(child);
+      }
+    }
   }
 
   initImg(onLoaded: CallableFunction) {
@@ -189,7 +211,7 @@ class painter {
           bottom: imgRes.padding,
         };
       }
-      img = new Image(imgRes.width, imgRes.height);
+      img = new Image();
       img.src = imgRes.src;
       imgRes.ImageObject = img;
       img.onload = () => {
@@ -217,6 +239,7 @@ class painter {
   drawRect(
     x: number,
     y: number,
+    drawInfo: IDrawInfo,
     content: string,
     style: IStyle,
     image: IProcessedImageRes,
@@ -229,8 +252,6 @@ class painter {
 
     this.ctx.lineWidth = style.borderWidth;
     this.ctx.strokeStyle = style.colors.border;
-
-    const drawInfo = this.calcRect(content, style, image);
 
     this.ctx.fillStyle = style.colors.background;
     this.roundedRect(
@@ -304,7 +325,8 @@ class painter {
   calcRect(
     content: string,
     style: IStyle,
-    image: IProcessedImageRes | undefined
+    image: IProcessedImageRes | undefined,
+    link: ILink | undefined
   ): IDrawInfo {
     const splittedText = content.split("\n");
     this.ctx.font = style.font;
@@ -413,10 +435,13 @@ class painter {
       }
     }
 
-    const style = this.processInitialStyle(node.style, this.globalStyle);
+    const style = node.style;
     style.colors = currentColorLevel;
 
-    const thisNode = this.calcRect(node.content, style, image);
+    this.ctx.font = style.font;
+    // const wrappedContent = this.wrapText(node.content, style);
+
+    const thisNode = this.calcRect(node.content, style, image, node.link);
     const connectPoints = [];
     if (node.children) {
       let info: ITreeBuildResult;
@@ -449,6 +474,7 @@ class painter {
     const drawResult = this.drawRect(
       baseX,
       baseY + treeHeight / 2,
+      thisNode,
       node.content,
       style,
       image,
@@ -477,6 +503,39 @@ class painter {
         baseY + treeHeight / 2 + thisNode.height / 2 - this.NODE_PADDING / 2,
       hotspots: hotSpots,
     };
+  }
+
+  wrapText(text: string, style: IStyle): string {
+    const splittedOriginal = text.split("\n");
+    const result: string[] = [];
+    const maxWidth =
+      this.globalStyle.maxWidth -
+      (<IPadding>style.padding).left -
+      (<IPadding>style.padding).right;
+    for (const line of splittedOriginal) {
+      const lineWidth = this.ctx.measureText(line).width;
+
+      if (lineWidth > maxWidth) {
+        // construct lines
+        const wrappedLines: string[] = [];
+        let currentLine = "";
+        for (let i = 0; i < line.length; i++) {
+          if (this.ctx.measureText(currentLine + line[i]).width < maxWidth) {
+            currentLine += line[i];
+          } else {
+            wrappedLines.push(currentLine);
+            currentLine = line[i];
+          }
+        }
+        if (currentLine != "") {
+          wrappedLines.push(currentLine);
+        }
+        result.push(wrappedLines.join("\n"));
+      } else {
+        result.push(line);
+      }
+    }
+    return result.join("\n");
   }
 
   processInitialStyle(style: IStyle, defaults?: IGlobalStyle): IStyle {
