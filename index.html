@@ -51,7 +51,7 @@
         },
         hoverBorder: {
           width: 6,
-          color: "green",
+          color: "#2233442A",
         },
       },
       images: {
@@ -177,20 +177,25 @@
         offsetY += e.movementY;
         rebuild();
       }
-      const curretnHoverSpot = p.getCurrentHoverSpot({ x: e.x, y: e.y });
-      if (curretnHoverSpot) {
+      const currentHoverSpot = p.getCurrentHoverSpot({
+        x: e.x,
+        y: e.y,
+      });
+      if (currentHoverSpot != lastHover) {
+        lastHover = currentHoverSpot;
+        if (currentHoverSpot == undefined) {
+          rebuild();
+        } else {
+          p.useHoverEffect(currentHoverSpot.nodeId, 0, offsetY);
+        }
       }
-      if (curretnHoverSpot != lastHover)
-        p.useHoverEffect(curretnHoverSpot.nodeId, 0, offsetY);
     };
 
     window.onresize = () => {
       rebuild();
     };
 
-    cvs.onclick = (e) => {
-      if (e.movementY == 0) console.log(currentHotspot);
-    };
+    cvs.onclick = (e) => {};
     cvs.onwheel = (e) => {
       offsetY -= e.deltaY;
       ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);

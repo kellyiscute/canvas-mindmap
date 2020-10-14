@@ -172,7 +172,6 @@ class painter {
     this.offsetY = 0;
     this.images = root.images;
     this.data.node = this.prepareNodeId(this.data.node);
-    console.log(this.data.node);
   }
 
   initImg(onLoaded: CallableFunction) {
@@ -367,7 +366,7 @@ class painter {
         y: y * this.scale + height * this.scale,
       },
     };
-    console.log(result);
+
     return result;
   }
 
@@ -455,7 +454,7 @@ class painter {
       image,
       node.nodeId == hoverEffectNodeId
     );
-    console.log({ currentId: node.nodeId, targetId: hoverEffectNodeId });
+
     hotSpots = [...hotSpots, ...drawResult.hotSpots];
     const rect = this.getRealRect(
       { x: drawResult.x, y: drawResult.y },
@@ -617,6 +616,8 @@ class painter {
       yOffset = this.offsetY;
     }
     this.scale = scale;
+    this.hotSpots = [];
+    this.hoverSpots = [];
     const result = this.buildTree(
       this.data.node,
       50 + xOffset,
