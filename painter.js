@@ -31,8 +31,50 @@ var painter = /** @class */ (function () {
         this.offsetY = 0;
         this.images = root.images;
         this.data.node = this.prepareNodeId(this.data.node);
-        console.log(this.data.node);
+        this.linkCount = 0;
+        // prepare node data
+        this.prepareNode(this.data.node);
     }
+    painter.prototype.prepareNode = function (node) {
+        var style = this.processInitialStyle(node.style, this.globalStyle);
+        node.style = style;
+        this.ctx.font = style.font;
+        node.content = this.wrapText(node.content, style);
+        node.textMeasure = this.getTextMeasure(node.content);
+        if (node.link) {
+            this.linkCount += 1;
+            node.link.title = this.wrapText(node.link.title, style);
+            node.link.textMeasure = this.getTextMeasure(node.link.title);
+            node.link.nodeId = "link-" + this.linkCount;
+        }
+        if (node.title) {
+            node.title = this.wrapText(node.title, style);
+            node.titleMeasure = this.getTextMeasure(node.title);
+        }
+        if (node.children) {
+            for (var _i = 0, _a = node.children; _i < _a.length; _i++) {
+                var child = _a[_i];
+                this.prepareNode(child);
+            }
+        }
+    };
+    painter.prototype.getTextMeasure = function (text) {
+        var splittedText = text.split("\n");
+        var measure = this.ctx.measureText(splittedText[0]);
+        var textMeasure = { width: 0, textHeight: 0, totalHeight: 0 };
+        for (var _i = 0, splittedText_1 = splittedText; _i < splittedText_1.length; _i++) {
+            var content = splittedText_1[_i];
+            var w = this.ctx.measureText(content).width;
+            if (w > textMeasure.width) {
+                textMeasure.width = w;
+            }
+        }
+        var textHeight = (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
+            1.5;
+        textMeasure.textHeight = textHeight;
+        textMeasure.totalHeight = textHeight * splittedText.length;
+        return textMeasure;
+    };
     painter.prototype.initImg = function (onLoaded) {
         var _this = this;
         var img;
@@ -50,7 +92,7 @@ var painter = /** @class */ (function () {
                     bottom: imgRes.padding
                 };
             }
-            img = new Image(imgRes.width, imgRes.height);
+            img = new Image();
             img.src = imgRes.src;
             imgRes.ImageObject = img;
             img.onload = function () {
@@ -67,36 +109,47 @@ var painter = /** @class */ (function () {
         this.ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 5, y1, x1 + 50, y2, x2, y2);
         this.ctx.stroke();
     };
-    painter.prototype.drawRect = function (x, y, content, style, image, hover) {
+    painter.prototype.drawRect = function (x, y, drawInfo, node, hoverNodeId) {
         var hotspots = [];
-        var splittedText = content.split("\n");
         this.ctx.beginPath();
-        this.ctx.lineWidth = style.borderWidth;
-        this.ctx.strokeStyle = style.colors.border;
-        var drawInfo = this.calcRect(content, style, image);
-        this.ctx.fillStyle = style.colors.background;
-        this.roundedRect(x + style.borderWidth / 2, y + style.borderWidth / 2, drawInfo.width - style.borderWidth / 2, drawInfo.height - this.NODE_PADDING - style.borderWidth / 2, style.radius);
-        if (hover) {
-            this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
-            this.ctx.lineWidth = this.globalStyle.hoverBorder.width;
-            this.roundedRect(x - this.globalStyle.hoverBorder.width / 2, y - this.globalStyle.hoverBorder.width / 2, drawInfo.width +
-                style.borderWidth / 2 +
-                this.globalStyle.hoverBorder.width, drawInfo.height +
-                style.borderWidth / 2 -
-                this.NODE_PADDING +
-                this.globalStyle.hoverBorder.width, style.radius +
-                this.globalStyle.hoverBorder.width +
-                style.borderWidth / 2, false);
+        this.ctx.lineWidth = node.style.borderWidth;
+        var padding = node.style.padding;
+        var currentY = y;
+        // draw rect
+        this.ctx.strokeStyle = node.style.colors.border;
+        if (!node.title) {
+            this.ctx.fillStyle = node.style.colors.titleBackground;
         }
-        this.ctx.fillStyle = style.colors.textColor;
-        var padding = style.padding;
-        for (var i = 0; i < splittedText.length; i++) {
-            this.ctx.fillText(splittedText[i], x + padding.left + style.borderWidth, y + (i + 1) * drawInfo.textHeight + padding.top + style.borderWidth);
+        else {
+            this.ctx.fillStyle = node.style.colors.background;
         }
-        var currentY = y + splittedText.length * drawInfo.textHeight;
-        if (image) {
-            var imageX = x + image.padding.left;
-            var imageY = currentY + image.padding.top + padding.bottom;
+        this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width - node.style.borderWidth / 2, drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2, node.style.radius);
+        if (node.title) {
+            this.ctx.fillStyle = node.style.colors.titleBackground;
+            // fill title rect
+            this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width, node.titleMeasure.totalHeight +
+                node.style.borderWidth +
+                padding.bottom +
+                padding.top, { tl: node.style.radius, tr: node.style.radius, bl: 0, br: 0 }, true, false);
+            this.ctx.fillStyle = node.style.colors.textColor;
+            // draw title
+            this.printText(node.title, node.titleMeasure, node.style, x, currentY);
+            currentY += padding.top + padding.bottom + node.titleMeasure.totalHeight;
+            // redraw border
+            this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width - node.style.borderWidth / 2, drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2, node.style.radius, false);
+        }
+        // draw content
+        this.ctx.fillStyle = node.style.colors.textColor;
+        this.printText(node.content, node.textMeasure, node.style, x, currentY);
+        currentY += node.textMeasure.totalHeight + padding.bottom + padding.top;
+        // draw image
+        if (node.image) {
+            var image = this.images[node.image];
+            var imagePadding = image
+                ? image.padding
+                : this.globalStyle.padding;
+            var imageX = x + imagePadding.left;
+            var imageY = currentY + imagePadding.top;
             this.ctx.drawImage(image.ImageObject, imageX, imageY, image.width, image.height);
             hotspots.push({
                 rect: this.getRealRect({ x: imageX, y: imageY }, image.width, image.height),
@@ -104,6 +157,45 @@ var painter = /** @class */ (function () {
                 action: "bigImage",
                 imgSrc: image.src
             });
+            currentY += image.height + imagePadding.top + imagePadding.bottom;
+        }
+        // draw link
+        if (node.link) {
+            this.ctx.fillStyle = node.style.colors.linkColor;
+            currentY -= padding.bottom;
+            if (hoverNodeId == node.link.nodeId) {
+            }
+            this.printText(node.link.title, node.link.textMeasure, node.style, x, currentY);
+            if (hoverNodeId == node.link.nodeId) {
+                this.ctx.fillRect(x + padding.left + node.style.borderWidth, currentY + node.link.textMeasure.totalHeight + padding.top + 4, node.link.textMeasure.width, 2);
+            }
+            var spot = {
+                rect: this.getRealRect({
+                    x: x + padding.left,
+                    y: currentY + padding.top + 2
+                }, node.link.textMeasure.width, node.link.textMeasure.totalHeight),
+                nodeId: node.link.nodeId,
+                triggerType: "link",
+                action: "linkTo",
+                link: node.link.src
+            };
+            this.hoverSpots.push(spot);
+            hotspots.push(spot);
+        }
+        // draw hover effect
+        if (typeof hoverNodeId != "undefined" &&
+            (hoverNodeId == node.nodeId ||
+                (node.link ? hoverNodeId == node.link.nodeId : false))) {
+            this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
+            this.ctx.lineWidth = this.globalStyle.hoverBorder.width;
+            this.roundedRect(x - this.globalStyle.hoverBorder.width / 2, y - this.globalStyle.hoverBorder.width / 2, drawInfo.width +
+                node.style.borderWidth / 2 +
+                this.globalStyle.hoverBorder.width, drawInfo.height +
+                node.style.borderWidth / 2 -
+                this.NODE_PADDING +
+                this.globalStyle.hoverBorder.width, node.style.radius +
+                this.globalStyle.hoverBorder.width +
+                node.style.borderWidth / 2, false);
         }
         var result = {
             x: x,
@@ -114,51 +206,66 @@ var painter = /** @class */ (function () {
         };
         return result;
     };
-    painter.prototype.calcRect = function (content, style, image) {
-        var splittedText = content.split("\n");
-        this.ctx.font = style.font;
-        var measure = this.ctx.measureText(content);
-        var textWidth = 0;
-        for (var _i = 0, splittedText_1 = splittedText; _i < splittedText_1.length; _i++) {
-            var content_1 = splittedText_1[_i];
-            var w = this.ctx.measureText(content_1).width;
-            if (w > textWidth) {
-                textWidth = w;
-            }
-        }
-        var nodewidth = style.width;
-        var nodeheight = style.height;
-        var textHeight = (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
-            1.5;
+    painter.prototype.printText = function (text, textMeasure, style, x, y) {
         var padding = style.padding;
-        if (!style.width) {
-            nodewidth = style.borderWidth * 2;
-            var textSpace = textWidth + padding.left + padding.right;
-            var imageSpace = (image ? image.padding.left : 0) +
-                (image ? image.padding.right : 0) +
-                (image ? image.width : 0);
-            if (imageSpace > textSpace) {
-                nodewidth += imageSpace;
-            }
-            else {
-                nodewidth += textSpace;
-            }
+        var splittedText = text.split("\n");
+        for (var i = 0; i < splittedText.length; i++) {
+            this.ctx.fillText(splittedText[i], x + padding.left + style.borderWidth, y + (i + 1) * textMeasure.textHeight + padding.top);
         }
-        if (!style.height) {
+    };
+    painter.prototype.calcRect = function (node) {
+        this.ctx.font = node.style.font;
+        var nodewidth = node.style.width;
+        var nodeheight = node.style.height;
+        var image = this.images[node.image];
+        var imagePadding = image ? image.padding : null;
+        var padding = node.style.padding;
+        if (!node.style.width) {
+            nodewidth = node.style.borderWidth * 2;
+            var textSpace = node.textMeasure.width + padding.left + padding.right;
+            var imageSpace = (image ? imagePadding.left : 0) +
+                (image ? imagePadding.right : 0) +
+                (image ? image.width : 0);
+            var linkSpace = 0;
+            if (node.link) {
+                linkSpace = node.link.textMeasure.width + padding.left + padding.right;
+            }
+            var titleSpace = 0;
+            if (node.title) {
+                titleSpace = node.titleMeasure.width + padding.left + padding.right;
+            }
+            var l = [textSpace, imageSpace, linkSpace, titleSpace];
+            var max = 0;
+            for (var _i = 0, l_1 = l; _i < l_1.length; _i++) {
+                var num = l_1[_i];
+                if (num > max) {
+                    max = num;
+                }
+            }
+            nodewidth += max;
+        }
+        if (!node.style.height) {
             nodeheight =
-                textHeight * splittedText.length +
+                node.textMeasure.totalHeight +
                     padding.top +
                     padding.bottom +
                     (image ? image.height : 0) +
-                    (image ? image.padding.top : 0) +
-                    (image ? image.padding.bottom : 0) +
-                    style.borderWidth * 2 +
+                    (image ? imagePadding.top : 0) +
+                    (image ? imagePadding.bottom : 0) +
+                    node.style.borderWidth * 2 +
                     2;
+            if (node.title) {
+                nodeheight +=
+                    node.titleMeasure.totalHeight + padding.top + padding.bottom;
+            }
+            if (node.link) {
+                nodeheight += node.link.textMeasure.totalHeight + padding.top;
+            }
         }
         var result = {
             width: nodewidth,
             height: nodeheight + this.NODE_PADDING,
-            textHeight: textHeight
+            textHeight: node.textMeasure.textHeight
         };
         return result;
     };
@@ -171,7 +278,6 @@ var painter = /** @class */ (function () {
                 y: y * this.scale + height * this.scale
             }
         };
-        console.log(result);
         return result;
     };
     painter.prototype.buildTree = function (node, baseX, baseY, level, hoverEffectNodeId) {
@@ -202,9 +308,10 @@ var painter = /** @class */ (function () {
                 };
             }
         }
-        var style = this.processInitialStyle(node.style, this.globalStyle);
+        var style = node.style;
         style.colors = currentColorLevel;
-        var thisNode = this.calcRect(node.content, style, image);
+        this.ctx.font = style.font;
+        var thisNode = this.calcRect(node);
         var connectPoints = [];
         if (node.children) {
             var info = void 0;
@@ -223,8 +330,7 @@ var painter = /** @class */ (function () {
             this.connect(baseX + thisNode.width, baseY + treeHeight / 2 + thisNode.height / 2 - this.NODE_PADDING / 2, baseX + thisNode.width + this.NODE_X_PADDING - 1, point, connectionStyle);
         }
         // Draw parent node last to cover the head of the connections
-        var drawResult = this.drawRect(baseX, baseY + treeHeight / 2, node.content, style, image, node.nodeId == hoverEffectNodeId);
-        console.log({ currentId: node.nodeId, targetId: hoverEffectNodeId });
+        var drawResult = this.drawRect(baseX, baseY + treeHeight / 2, thisNode, node, hoverEffectNodeId);
         hotSpots = __spreadArrays(hotSpots, drawResult.hotSpots);
         var rect = this.getRealRect({ x: drawResult.x, y: drawResult.y }, drawResult.width + style.borderWidth / 2, drawResult.height - this.NODE_PADDING + style.borderWidth);
         if (node.hotSpot) {
@@ -237,6 +343,39 @@ var painter = /** @class */ (function () {
             connectPoint: baseY + treeHeight / 2 + thisNode.height / 2 - this.NODE_PADDING / 2,
             hotspots: hotSpots
         };
+    };
+    painter.prototype.wrapText = function (text, style) {
+        var splittedOriginal = text.split("\n");
+        var result = [];
+        var maxWidth = this.globalStyle.maxWidth -
+            style.padding.left -
+            style.padding.right;
+        for (var _i = 0, splittedOriginal_1 = splittedOriginal; _i < splittedOriginal_1.length; _i++) {
+            var line = splittedOriginal_1[_i];
+            var lineWidth = this.ctx.measureText(line).width;
+            if (lineWidth > maxWidth) {
+                // construct lines
+                var wrappedLines = [];
+                var currentLine = "";
+                for (var i = 0; i < line.length; i++) {
+                    if (this.ctx.measureText(currentLine + line[i]).width < maxWidth) {
+                        currentLine += line[i];
+                    }
+                    else {
+                        wrappedLines.push(currentLine);
+                        currentLine = line[i];
+                    }
+                }
+                if (currentLine != "") {
+                    wrappedLines.push(currentLine);
+                }
+                result.push(wrappedLines.join("\n"));
+            }
+            else {
+                result.push(line);
+            }
+        }
+        return result.join("\n");
     };
     painter.prototype.processInitialStyle = function (style, defaults) {
         var font = defaults ? defaults.font : "20px TimesNewRoman";
@@ -280,8 +419,10 @@ var painter = /** @class */ (function () {
             colors: colors
         };
     };
-    painter.prototype.roundedRect = function (x, y, width, height, radius, fill) {
+    painter.prototype.roundedRect = function (x, y, width, height, radius, fill, border) {
         if (radius === void 0) { radius = 5; }
+        if (fill === void 0) { fill = true; }
+        if (border === void 0) { border = true; }
         if (typeof radius === "number") {
             radius = { tl: radius, tr: radius, br: radius, bl: radius };
         }
@@ -302,7 +443,8 @@ var painter = /** @class */ (function () {
         this.ctx.closePath();
         if (fill)
             this.ctx.fill();
-        this.ctx.stroke();
+        if (border)
+            this.ctx.stroke();
     };
     painter.prototype.inRect = function (pos, rect) {
         if (pos.x >= rect.topLeftCorner.x && pos.x <= rect.bottomRightCorner.x) {
@@ -313,11 +455,23 @@ var painter = /** @class */ (function () {
         return false;
     };
     painter.prototype.getCurrentHoverSpot = function (point) {
+        var spots = [];
         for (var _i = 0, _a = this.hoverSpots; _i < _a.length; _i++) {
             var hoverspot = _a[_i];
             if (this.inRect(point, hoverspot.rect)) {
-                return hoverspot;
+                spots.push(hoverspot);
             }
+        }
+        if (spots.length > 1) {
+            for (var _b = 0, spots_1 = spots; _b < spots_1.length; _b++) {
+                var hoverspot = spots_1[_b];
+                if (hoverspot.nodeId.indexOf("link") != -1) {
+                    return hoverspot;
+                }
+            }
+        }
+        else {
+            return spots.length > 0 ? spots[0] : null;
         }
     };
     painter.prototype.useHoverEffect = function (nodeId) {
@@ -328,13 +482,24 @@ var painter = /** @class */ (function () {
         this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     };
     painter.prototype.getCurrentHotSpot = function (point) {
+        var spots = [];
         for (var _i = 0, _a = this.hotSpots; _i < _a.length; _i++) {
             var hotspot = _a[_i];
             if (this.inRect(point, hotspot.rect)) {
-                return hotspot;
+                spots.push(hotspot);
             }
         }
-        return undefined;
+        if (spots.length > 1) {
+            for (var _b = 0, spots_2 = spots; _b < spots_2.length; _b++) {
+                var hotspot = spots_2[_b];
+                if (hotspot.triggerType == "link") {
+                    return hotspot;
+                }
+            }
+        }
+        else {
+            return spots.length > 0 ? spots[0] : null;
+        }
     };
     painter.prototype.prepareNodeId = function (node, levelHeader) {
         if (!levelHeader) {
@@ -356,6 +521,8 @@ var painter = /** @class */ (function () {
             yOffset = this.offsetY;
         }
         this.scale = scale;
+        this.hotSpots = [];
+        this.hoverSpots = [];
         var result = this.buildTree(this.data.node, 50 + xOffset, 50 + yOffset, undefined, hoverNodeId);
         this.offsetX = xOffset;
         this.offsetY = yOffset;

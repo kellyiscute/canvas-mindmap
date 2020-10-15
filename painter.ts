@@ -33,15 +33,6 @@ interface IHoverBorder {
   color: string;
 }
 
-// interface IProcessedStyle {
-//   colors: IColorDefinition;
-//   font: string;
-//   padding: IPadding;
-//   radius: number;
-//   height: number | undefined;
-//   width: number | undefined;
-// }
-
 interface IConnectionStyle {
   color?: string;
   width: number;
