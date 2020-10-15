@@ -78,6 +78,7 @@ interface ILink {
   src: string;
   title: string;
   textMeasure: ITextMeasure;
+  nodeId: string;
 }
 
 interface IDrawInfo {
@@ -159,6 +160,7 @@ interface IColorDefinition {
   titleBackground: string;
   childConnectionColor: IConnectionStyle;
   textColor: string;
+  linkColor: string;
 }
 
 class painter {
@@ -174,6 +176,7 @@ class painter {
   ctx: CanvasRenderingContext2D;
   offsetX: number;
   offsetY: number;
+  linkCount: number;
 
   constructor(ctx: CanvasRenderingContext2D, root: IRoot) {
     this.ctx = ctx;
@@ -189,6 +192,7 @@ class painter {
     this.offsetY = 0;
     this.images = root.images;
     this.data.node = this.prepareNodeId(this.data.node);
+    this.linkCount = 0;
 
     // prepare node data
     this.prepareNode(this.data.node);
@@ -203,8 +207,10 @@ class painter {
     node.textMeasure = this.getTextMeasure(node.content);
 
     if (node.link) {
+      this.linkCount += 1;
       node.link.title = this.wrapText(node.link.title, style);
       node.link.textMeasure = this.getTextMeasure(node.link.title);
+      node.link.nodeId = "link-" + this.linkCount;
     }
     if (node.title) {
       node.title = this.wrapText(node.title, style);
@@ -281,13 +287,11 @@ class painter {
     y: number,
     drawInfo: IDrawInfo,
     node: INode,
-    hover: boolean
+    hoverNodeId: string
   ): IDrawResult {
     const hotspots: IHotSpot[] = [];
 
-    const splittedText = node.content.split("\n");
     this.ctx.beginPath();
-
     this.ctx.lineWidth = node.style.borderWidth;
 
     const padding = <IPadding>node.style.padding;
@@ -307,7 +311,110 @@ class painter {
       drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
       node.style.radius
     );
-    if (hover) {
+    if (node.title) {
+      this.ctx.fillStyle = node.style.colors.titleBackground;
+      // fill title rect
+      this.roundedRect(
+        x + node.style.borderWidth / 2,
+        y + node.style.borderWidth / 2,
+        drawInfo.width,
+        node.titleMeasure.totalHeight +
+          node.style.borderWidth +
+          padding.bottom +
+          padding.top,
+        { tl: node.style.radius, tr: node.style.radius, bl: 0, br: 0 },
+        true,
+        false
+      );
+      this.ctx.fillStyle = node.style.colors.textColor;
+      // draw title
+      this.printText(node.title, node.titleMeasure, node.style, x, currentY);
+      currentY += padding.top + padding.bottom + node.titleMeasure.totalHeight;
+      // redraw border
+      this.roundedRect(
+        x + node.style.borderWidth / 2,
+        y + node.style.borderWidth / 2,
+        drawInfo.width - node.style.borderWidth / 2,
+        drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
+        node.style.radius,
+        false
+      );
+    }
+    // draw content
+    this.ctx.fillStyle = node.style.colors.textColor;
+    this.printText(node.content, node.textMeasure, node.style, x, currentY);
+    currentY += node.textMeasure.totalHeight + padding.bottom + padding.top;
+    // draw image
+    if (node.image) {
+      const image = this.images[node.image];
+      const imagePadding = image
+        ? <IPadding>image.padding
+        : <IPadding>this.globalStyle.padding;
+      const imageX = x + imagePadding.left;
+      const imageY = currentY + imagePadding.top;
+      this.ctx.drawImage(
+        image.ImageObject,
+        imageX,
+        imageY,
+        image.width,
+        image.height
+      );
+      hotspots.push({
+        rect: this.getRealRect(
+          { x: imageX, y: imageY },
+          image.width,
+          image.height
+        ),
+        triggerType: "image",
+        action: "bigImage",
+        imgSrc: image.src,
+      });
+      currentY += image.height + imagePadding.top + imagePadding.bottom;
+    }
+    // draw link
+    if (node.link) {
+      this.ctx.fillStyle = node.style.colors.linkColor;
+      currentY -= padding.bottom;
+      if (hoverNodeId == node.link.nodeId) {
+      }
+      this.printText(
+        node.link.title,
+        node.link.textMeasure,
+        node.style,
+        x,
+        currentY
+      );
+      if (hoverNodeId == node.link.nodeId) {
+        this.ctx.fillRect(
+          x + padding.left + node.style.borderWidth,
+          currentY + node.link.textMeasure.totalHeight + padding.top + 4,
+          node.link.textMeasure.width,
+          2
+        );
+      }
+      const spot = {
+        rect: this.getRealRect(
+          {
+            x: x + padding.left,
+            y: currentY + padding.top + 2,
+          },
+          node.link.textMeasure.width,
+          node.link.textMeasure.totalHeight
+        ),
+        nodeId: node.link.nodeId,
+        triggerType: "link",
+        action: "linkTo",
+        link: node.link.src,
+      };
+      this.hoverSpots.push(<IHoverSpot>spot);
+      hotspots.push(<IHotSpot>spot);
+    }
+    // draw hover effect
+    if (
+      typeof hoverNodeId != "undefined" &&
+      (hoverNodeId == node.nodeId ||
+        (node.link ? hoverNodeId == node.link.nodeId : false))
+    ) {
       this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
       this.ctx.lineWidth = this.globalStyle.hoverBorder.width;
       this.roundedRect(
@@ -327,85 +434,6 @@ class painter {
       );
     }
 
-    if (node.title) {
-      this.ctx.fillStyle = node.style.colors.titleBackground;
-      // TODO: fill title rect
-      this.roundedRect(
-        x + node.style.borderWidth / 2,
-        y + node.style.borderWidth / 2,
-        drawInfo.width,
-        node.titleMeasure.totalHeight +
-          node.style.borderWidth +
-          padding.bottom +
-          padding.top,
-        { tl: node.style.radius, tr: node.style.radius, bl: 0, br: 0 },
-        true,
-        false
-      );
-      this.ctx.fillStyle = node.style.colors.textColor;
-      // TODO: draw title
-      const splittedTitle = node.title.split("\n");
-      for (let i = 0; i < splittedTitle.length; i++) {
-        this.ctx.fillText(
-          splittedTitle[i],
-          x + padding.left + node.style.borderWidth,
-          currentY +
-            (i + 1) * drawInfo.textHeight +
-            padding.top +
-            node.style.borderWidth
-        );
-      }
-      currentY += padding.top + node.style.borderWidth;
-      // redraw border
-      this.roundedRect(
-        x + node.style.borderWidth / 2,
-        y + node.style.borderWidth / 2,
-        drawInfo.width - node.style.borderWidth / 2,
-        drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
-        node.style.radius,
-        false
-      );
-      currentY += node.titleMeasure.totalHeight;
-    }
-    // draw content
-    this.ctx.fillStyle = node.style.colors.textColor;
-    for (let i = 0; i < splittedText.length; i++) {
-      this.ctx.fillText(
-        splittedText[i],
-        x + padding.left + node.style.borderWidth,
-        currentY +
-          (i + 1) * drawInfo.textHeight +
-          padding.top +
-          node.style.borderWidth
-      );
-    }
-    currentY += splittedText.length * drawInfo.textHeight;
-    // draw image
-    if (node.image) {
-      const image = this.images[node.image];
-      const imagePadding = image ? <IPadding>image.padding : null;
-      const imageX = x + imagePadding.left;
-      const imageY = currentY + imagePadding.top + padding.bottom;
-      this.ctx.drawImage(
-        image.ImageObject,
-        imageX,
-        imageY,
-        image.width,
-        image.height
-      );
-      hotspots.push({
-        rect: this.getRealRect(
-          { x: imageX, y: imageY },
-          image.width,
-          image.height
-        ),
-        triggerType: "image",
-        action: "bigImage",
-        imgSrc: image.src,
-      });
-    }
-    // TODO: draw link
-
     const result: IDrawResult = {
       x: x,
       y: y,
@@ -414,6 +442,24 @@ class painter {
       hotSpots: hotspots,
     };
     return result;
+  }
+
+  printText(
+    text: string,
+    textMeasure: ITextMeasure,
+    style: IStyle,
+    x: number,
+    y: number
+  ) {
+    const padding = <IPadding>style.padding;
+    const splittedText = text.split("\n");
+    for (let i = 0; i < splittedText.length; i++) {
+      this.ctx.fillText(
+        splittedText[i],
+        x + padding.left + style.borderWidth,
+        y + (i + 1) * textMeasure.textHeight + padding.top
+      );
+    }
   }
 
   calcRect(node: INode): IDrawInfo {
@@ -463,6 +509,9 @@ class painter {
       if (node.title) {
         nodeheight +=
           node.titleMeasure.totalHeight + padding.top + padding.bottom;
+      }
+      if (node.link) {
+        nodeheight += node.link.textMeasure.totalHeight + padding.top;
       }
     }
 
@@ -569,7 +618,7 @@ class painter {
       baseY + treeHeight / 2,
       thisNode,
       node,
-      node.nodeId == hoverEffectNodeId
+      hoverEffectNodeId
     );
 
     hotSpots = [...hotSpots, ...drawResult.hotSpots];
@@ -721,10 +770,20 @@ class painter {
   }
 
   getCurrentHoverSpot(point: IPoint): IHoverSpot {
+    const spots: IHoverSpot[] = [];
     for (const hoverspot of this.hoverSpots) {
       if (this.inRect(point, hoverspot.rect)) {
-        return hoverspot;
+        spots.push(hoverspot);
       }
+    }
+    if (spots.length > 1) {
+      for (const hoverspot of spots) {
+        if (hoverspot.nodeId.indexOf("link") != -1) {
+          return hoverspot;
+        }
+      }
+    } else {
+      return spots.length > 0 ? spots[0] : null;
     }
   }
 
@@ -738,12 +797,21 @@ class painter {
   }
 
   getCurrentHotSpot(point: IPoint): IHotSpot {
+    const spots: IHotSpot[] = [];
     for (const hotspot of this.hotSpots) {
       if (this.inRect(point, hotspot.rect)) {
-        return hotspot;
+        spots.push(hotspot);
       }
     }
-    return undefined;
+    if (spots.length > 1) {
+      for (const hotspot of spots) {
+        if (hotspot.triggerType == "link") {
+          return hotspot;
+        }
+      }
+    } else {
+      return spots.length > 0 ? spots[0] : null;
+    }
   }
 
   prepareNodeId(node: INode, levelHeader?: string) {

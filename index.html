@@ -12,7 +12,7 @@
   </style>
   <script src="painter.js"></script>
 
-  <body>
+  <body style="overflow: hidden">
     <canvas id="c"></canvas>
   </body>
   <script>
@@ -27,14 +27,14 @@
         font: "16px Calibri",
         padding: 9,
         radius: 5,
-        borderWidth: 10,
+        borderWidth: 2,
         predefinedColors: [
           {
             border: "blue",
             background: "white",
             titleBackground: "wheat",
             childConnectionColor: {
-              color: "black",
+              color: "wheat",
               width: 5,
             },
             textColor: "black",
@@ -48,6 +48,7 @@
             color: "black",
             width: 5,
           },
+          linkColor: "blue",
           textColor: "black",
         },
         hoverBorder: {
@@ -69,7 +70,11 @@
         children: [
           {
             title: "asdfasdf\nasdfasfd",
-            content: "child1",
+            content: "干嘛干嘛干嘛",
+            link: {
+              title: "百度",
+              src: "baidu.com",
+            },
             hotSpot: {
               action: "draw",
             },
@@ -93,6 +98,10 @@
                       radius: 20,
                     },
                     image: 1,
+                    link: {
+                      src: "baidu.com",
+                      title: "asdfasdf",
+                    },
                   },
                   {
                     content: "3-1yyy",
@@ -198,7 +207,9 @@
       rebuild();
     };
 
-    cvs.onclick = (e) => {};
+    cvs.onclick = (e) => {
+      console.log(currentHotspot);
+    };
     cvs.onwheel = (e) => {
       offsetY -= e.deltaY;
       ctx.clearRect(0, 0, window.outerWidth, cvs.clientHeight);
