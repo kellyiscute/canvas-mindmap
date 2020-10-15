@@ -19,6 +19,7 @@ interface IGlobalStyle {
   predefinedColors: IColorDefinition[];
   defaultColor: IColorDefinition;
   borderWidth: number;
+  expandButton: IExpandButton;
   font?: string;
   padding?: number | IPadding;
   radius?: number;
@@ -26,6 +27,16 @@ interface IGlobalStyle {
   width?: number;
   hoverBorder: IHoverBorder;
   maxWidth: number;
+}
+
+interface IExpandButton {
+  background: string;
+  borderColor: string;
+  borderWidth: number;
+  length: number;
+  radius: number;
+  textColor: string;
+  font: string;
 }
 
 interface IHoverBorder {
@@ -56,6 +67,7 @@ interface INode {
   hotSpot?: IHotSpot;
   title: string;
   titleMeasure: ITextMeasure;
+  collapseChildren: boolean;
   children?: INode[];
 }
 
@@ -133,9 +145,10 @@ interface IRect {
 
 interface IHotSpot {
   rect: IRect;
-  triggerType: "image" | "link" | "node" | "custom";
+  triggerType: "image" | "link" | "node" | "custom" | "expandCollapse";
   action: "linkTo" | "draw" | "bigImage";
   linkType?: "url" | "editor";
+  nodeId?: string;
   link?: string;
   imgSrc?: string;
 }
@@ -186,10 +199,10 @@ class painter {
     this.linkCount = 0;
 
     // prepare node data
-    this.prepareNode(this.data.node);
+    this.prepareNodes(this.data.node);
   }
 
-  prepareNode(node: INode) {
+  prepareNodes(node: INode, level: number = 0) {
     const style = this.processInitialStyle(node.style, this.globalStyle);
     node.style = style;
     this.ctx.font = style.font;
@@ -209,8 +222,12 @@ class painter {
     }
     if (node.children) {
       for (const child of node.children) {
-        this.prepareNode(child);
+        this.prepareNodes(child, level + 1);
       }
+    }
+
+    if (level > 0) {
+      node.collapseChildren = true;
     }
   }
 
@@ -400,12 +417,126 @@ class painter {
       this.hoverSpots.push(<IHoverSpot>spot);
       hotspots.push(<IHotSpot>spot);
     }
-    // draw hover effect
+
+    // draw collapse/expand button
+    const expandButton = this.globalStyle.expandButton;
+    const centerPoint: IPoint = {
+      x: x + drawInfo.width + node.style.borderWidth,
+      y:
+        y +
+        drawInfo.height / 2 -
+        this.NODE_PADDING / 2 -
+        expandButton.borderWidth / 2,
+    };
+    if (node.collapseChildren && node.children) {
+      this.ctx.fillStyle = expandButton.background;
+      this.ctx.strokeStyle = expandButton.borderColor;
+      this.ctx.fillRect(
+        centerPoint.x,
+        centerPoint.y,
+        expandButton.length,
+        expandButton.borderWidth
+      );
+      this.ctx.beginPath();
+      const circleData: IRect = {
+        topLeftCorner: {
+          x:
+            centerPoint.x +
+            expandButton.length +
+            expandButton.borderWidth / 2 -
+            2,
+          y: centerPoint.y + expandButton.borderWidth / 2 - expandButton.radius,
+        },
+        bottomRightCorner: {
+          x:
+            centerPoint.x +
+            expandButton.radius * 2 +
+            expandButton.borderWidth * 2,
+          y: centerPoint.y + expandButton.radius,
+        },
+      };
+      this.ctx.ellipse(
+        centerPoint.x +
+          expandButton.length +
+          expandButton.radius +
+          expandButton.borderWidth / 2 -
+          2,
+        centerPoint.y + expandButton.borderWidth / 2,
+        expandButton.radius,
+        expandButton.radius,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.fillStyle = expandButton.textColor;
+      this.ctx.font = expandButton.font;
+      const num = node.children.length.toString();
+      const textMeasure = this.getTextMeasure(num);
+      this.ctx.fillText(
+        num,
+        centerPoint.x +
+          expandButton.length +
+          expandButton.radius -
+          textMeasure.width / 2,
+        centerPoint.y + textMeasure.totalHeight / 2 - 1
+      );
+      this.ctx.font = this.globalStyle.font;
+      hotspots.push({
+        rect: circleData,
+        triggerType: "expandCollapse",
+        action: "draw",
+        nodeId: node.nodeId,
+      });
+    } else if (!node.collapseChildren && node.children) {
+      this.ctx.fillStyle = expandButton.background;
+      this.ctx.strokeStyle = expandButton.borderColor;
+      this.ctx.beginPath();
+      const circleData: IRect = {
+        topLeftCorner: {
+          x: centerPoint.x + expandButton.borderWidth / 2 - expandButton.radius,
+          y: centerPoint.y + expandButton.borderWidth / 2 - expandButton.radius,
+        },
+        bottomRightCorner: {
+          x: centerPoint.x + expandButton.radius,
+          y: centerPoint.y + expandButton.radius,
+        },
+      };
+      this.ctx.ellipse(
+        centerPoint.x + expandButton.borderWidth / 2 - 2,
+        centerPoint.y + expandButton.borderWidth / 2,
+        expandButton.radius,
+        expandButton.radius,
+        0,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.fillStyle = expandButton.textColor;
+      this.ctx.font = expandButton.font;
+      const textMeasure = this.getTextMeasure("-");
+      this.ctx.fillText(
+        "-",
+        centerPoint.x - textMeasure.width / 2,
+        centerPoint.y + textMeasure.totalHeight / 2
+      );
+      this.ctx.font = this.globalStyle.font;
+      hotspots.push({
+        rect: circleData,
+        triggerType: "expandCollapse",
+        action: "draw",
+        nodeId: node.nodeId,
+      });
+    }
+
     if (
       typeof hoverNodeId != "undefined" &&
       (hoverNodeId == node.nodeId ||
         (node.link ? hoverNodeId == node.link.nodeId : false))
     ) {
+      // draw hover effect
       this.ctx.strokeStyle = this.globalStyle.hoverBorder.color;
       this.ctx.lineWidth = this.globalStyle.hoverBorder.width;
       this.roundedRect(
@@ -448,7 +579,7 @@ class painter {
       this.ctx.fillText(
         splittedText[i],
         x + padding.left + style.borderWidth,
-        y + (i + 1) * textMeasure.textHeight + padding.top
+        y + (i + 1) * textMeasure.textHeight + padding.top + style.borderWidth
       );
     }
   }
@@ -576,7 +707,7 @@ class painter {
 
     const thisNode = this.calcRect(node);
     const connectPoints = [];
-    if (node.children) {
+    if (node.children && !node.collapseChildren) {
       let info: ITreeBuildResult;
       for (const childNode of node.children) {
         info = this.buildTree(
@@ -796,12 +927,42 @@ class painter {
     }
     if (spots.length > 1) {
       for (const hotspot of spots) {
+        if (hotspot.triggerType == "expandCollapse") {
+          return hotspot;
+        }
         if (hotspot.triggerType == "link") {
           return hotspot;
         }
       }
     } else {
       return spots.length > 0 ? spots[0] : null;
+    }
+  }
+
+  doNodeExpandCollapse(nodeId: string) {
+    const node = this.findNode(nodeId, this.data.node);
+    node.collapseChildren = !node.collapseChildren;
+    this.wipe();
+    this.build(this.scale, this.offsetX, this.offsetY, undefined);
+    console.log(node);
+  }
+
+  findNode(nodeId: string, currentNode: INode): INode {
+    if (currentNode.nodeId == nodeId) {
+      return currentNode;
+    }
+    if (currentNode.children) {
+      for (const child of currentNode.children) {
+        if (child.nodeId == nodeId) {
+          return child;
+        }
+      }
+      for (const child of currentNode.children) {
+        const result = this.findNode(nodeId, child);
+        if (result) {
+          return result;
+        }
+      }
     }
   }
 

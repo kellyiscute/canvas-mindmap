@@ -8,6 +8,7 @@
   <style>
     * {
       margin: 0;
+      background-color: #222230;
     }
   </style>
   <script src="painter.js"></script>
@@ -28,6 +29,15 @@
         padding: 9,
         radius: 5,
         borderWidth: 2,
+        expandButton: {
+          background: "wheat",
+          borderColor: "brown",
+          borderWidth: 3,
+          length: 10,
+          radius: 10,
+          textColor: "black",
+          font: " 12px Calibri",
+        },
         predefinedColors: [
           {
             border: "blue",
@@ -41,19 +51,19 @@
           },
         ],
         defaultColor: {
-          border: "black",
+          border: "white",
           background: "white",
-          titleBackground: "#FFF777",
+          titleBackground: "#FF1177",
           childConnectionColor: {
             color: "black",
             width: 5,
           },
-          linkColor: "blue",
+          linkColor: "royalblue",
           textColor: "black",
         },
         hoverBorder: {
           width: 6,
-          color: "#2233442A",
+          color: "#FFFFFF2A",
         },
       },
       images: {
@@ -209,6 +219,11 @@
 
     cvs.onclick = (e) => {
       console.log(currentHotspot);
+      if (currentHotspot) {
+        if (currentHotspot.triggerType == "expandCollapse") {
+          p.doNodeExpandCollapse(currentHotspot.nodeId);
+        }
+      }
     };
     cvs.onwheel = (e) => {
       offsetY -= e.deltaY;
