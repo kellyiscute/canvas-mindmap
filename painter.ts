@@ -310,8 +310,9 @@ export default class painter {
         centerPoint.x +
           expandButton.length +
           expandButton.radius -
-          textMeasure.width / 2,
-        centerPoint.y + textMeasure.totalHeight / 2 - 1
+          textMeasure.width / 2 -
+          0.5,
+        centerPoint.y + textMeasure.totalHeight / 2 - 0.5
       );
       this.ctx.font = this.globalStyle.font;
       hotspots.push({

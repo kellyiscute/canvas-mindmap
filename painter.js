@@ -1,23 +1,5 @@
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
-};
-var painter = /** @class */ (function () {
-    function painter(ctx, root) {
+class painter {
+    constructor(ctx, root) {
         this.ctx = ctx;
         this.imageLoaded = false;
         this.scale = 1;
@@ -32,11 +14,10 @@ var painter = /** @class */ (function () {
         this.images = root.images;
         this.data.node = this.prepareNodeId(this.data.node);
         this.linkCount = 0;
-        // prepare node data
-        this.prepareNode(this.data.node);
+        this.prepareNodes(this.data.node);
     }
-    painter.prototype.prepareNode = function (node) {
-        var style = this.processInitialStyle(node.style, this.globalStyle);
+    prepareNodes(node, level = 0) {
+        const style = this.processInitialStyle(node.style, this.globalStyle);
         node.style = style;
         this.ctx.font = style.font;
         node.content = this.wrapText(node.content, style);
@@ -52,35 +33,34 @@ var painter = /** @class */ (function () {
             node.titleMeasure = this.getTextMeasure(node.title);
         }
         if (node.children) {
-            for (var _i = 0, _a = node.children; _i < _a.length; _i++) {
-                var child = _a[_i];
-                this.prepareNode(child);
+            for (const child of node.children) {
+                this.prepareNodes(child, level + 1);
             }
         }
-    };
-    painter.prototype.getTextMeasure = function (text) {
-        var splittedText = text.split("\n");
-        var measure = this.ctx.measureText(splittedText[0]);
-        var textMeasure = { width: 0, textHeight: 0, totalHeight: 0 };
-        for (var _i = 0, splittedText_1 = splittedText; _i < splittedText_1.length; _i++) {
-            var content = splittedText_1[_i];
-            var w = this.ctx.measureText(content).width;
+        if (level > 0) {
+            node.collapseChildren = true;
+        }
+    }
+    getTextMeasure(text) {
+        const splittedText = text.split("\n");
+        const measure = this.ctx.measureText(splittedText[0]);
+        const textMeasure = { width: 0, textHeight: 0, totalHeight: 0 };
+        for (const content of splittedText) {
+            const w = this.ctx.measureText(content).width;
             if (w > textMeasure.width) {
                 textMeasure.width = w;
             }
         }
-        var textHeight = (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
+        const textHeight = (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
             1.5;
         textMeasure.textHeight = textHeight;
         textMeasure.totalHeight = textHeight * splittedText.length;
         return textMeasure;
-    };
-    painter.prototype.initImg = function (onLoaded) {
-        var _this = this;
-        var img;
-        for (var _i = 0, _a = Object.keys(this.images); _i < _a.length; _i++) {
-            var imgId = _a[_i];
-            var imgRes = this.images[imgId];
+    }
+    initImg(onLoaded) {
+        let img;
+        for (const imgId of Object.keys(this.images)) {
+            const imgRes = this.images[imgId];
             if (!imgRes.padding) {
                 imgRes.padding = 0;
             }
@@ -89,33 +69,32 @@ var painter = /** @class */ (function () {
                     top: imgRes.padding,
                     left: imgRes.padding,
                     right: imgRes.padding,
-                    bottom: imgRes.padding
+                    bottom: imgRes.padding,
                 };
             }
             img = new Image();
             img.src = imgRes.src;
             imgRes.ImageObject = img;
-            img.onload = function () {
-                _this.imageLoaded = true;
+            img.onload = () => {
+                this.imageLoaded = true;
                 onLoaded();
             };
         }
-    };
-    painter.prototype.connect = function (x1, y1, x2, y2, style) {
+    }
+    connect(x1, y1, x2, y2, style) {
         this.ctx.strokeStyle = style.color;
         this.ctx.lineWidth = style.width;
         this.ctx.beginPath();
         this.ctx.moveTo(x1, y1);
         this.ctx.bezierCurveTo(x1 + ((x2 - x1) * 2) / 5, y1, x1 + 50, y2, x2, y2);
         this.ctx.stroke();
-    };
-    painter.prototype.drawRect = function (x, y, drawInfo, node, hoverNodeId) {
-        var hotspots = [];
+    }
+    drawRect(x, y, drawInfo, node, hoverNodeId) {
+        const hotspots = [];
         this.ctx.beginPath();
         this.ctx.lineWidth = node.style.borderWidth;
-        var padding = node.style.padding;
-        var currentY = y;
-        // draw rect
+        const padding = node.style.padding;
+        let currentY = y;
         this.ctx.strokeStyle = node.style.colors.border;
         if (!node.title) {
             this.ctx.fillStyle = node.style.colors.titleBackground;
@@ -126,40 +105,34 @@ var painter = /** @class */ (function () {
         this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width - node.style.borderWidth / 2, drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2, node.style.radius);
         if (node.title) {
             this.ctx.fillStyle = node.style.colors.titleBackground;
-            // fill title rect
             this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width, node.titleMeasure.totalHeight +
                 node.style.borderWidth +
                 padding.bottom +
                 padding.top, { tl: node.style.radius, tr: node.style.radius, bl: 0, br: 0 }, true, false);
             this.ctx.fillStyle = node.style.colors.textColor;
-            // draw title
             this.printText(node.title, node.titleMeasure, node.style, x, currentY);
             currentY += padding.top + padding.bottom + node.titleMeasure.totalHeight;
-            // redraw border
             this.roundedRect(x + node.style.borderWidth / 2, y + node.style.borderWidth / 2, drawInfo.width - node.style.borderWidth / 2, drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2, node.style.radius, false);
         }
-        // draw content
         this.ctx.fillStyle = node.style.colors.textColor;
         this.printText(node.content, node.textMeasure, node.style, x, currentY);
         currentY += node.textMeasure.totalHeight + padding.bottom + padding.top;
-        // draw image
         if (node.image) {
-            var image = this.images[node.image];
-            var imagePadding = image
+            const image = this.images[node.image];
+            const imagePadding = image
                 ? image.padding
                 : this.globalStyle.padding;
-            var imageX = x + imagePadding.left;
-            var imageY = currentY + imagePadding.top;
+            const imageX = x + imagePadding.left;
+            const imageY = currentY + imagePadding.top;
             this.ctx.drawImage(image.ImageObject, imageX, imageY, image.width, image.height);
             hotspots.push({
                 rect: this.getRealRect({ x: imageX, y: imageY }, image.width, image.height),
                 triggerType: "image",
                 action: "bigImage",
-                imgSrc: image.src
+                imgSrc: image.src,
             });
             currentY += image.height + imagePadding.top + imagePadding.bottom;
         }
-        // draw link
         if (node.link) {
             this.ctx.fillStyle = node.style.colors.linkColor;
             currentY -= padding.bottom;
@@ -169,20 +142,99 @@ var painter = /** @class */ (function () {
             if (hoverNodeId == node.link.nodeId) {
                 this.ctx.fillRect(x + padding.left + node.style.borderWidth, currentY + node.link.textMeasure.totalHeight + padding.top + 4, node.link.textMeasure.width, 2);
             }
-            var spot = {
+            const spot = {
                 rect: this.getRealRect({
                     x: x + padding.left,
-                    y: currentY + padding.top + 2
+                    y: currentY + padding.top + 2,
                 }, node.link.textMeasure.width, node.link.textMeasure.totalHeight),
                 nodeId: node.link.nodeId,
                 triggerType: "link",
                 action: "linkTo",
-                link: node.link.src
+                link: node.link.src,
             };
             this.hoverSpots.push(spot);
             hotspots.push(spot);
         }
-        // draw hover effect
+        const expandButton = this.globalStyle.expandButton;
+        const centerPoint = {
+            x: x + drawInfo.width + node.style.borderWidth,
+            y: y +
+                drawInfo.height / 2 -
+                this.NODE_PADDING / 2 -
+                expandButton.borderWidth / 2,
+        };
+        if (node.collapseChildren && node.children) {
+            this.ctx.fillStyle = expandButton.background;
+            this.ctx.strokeStyle = expandButton.borderColor;
+            this.ctx.fillRect(centerPoint.x, centerPoint.y, expandButton.length, expandButton.borderWidth);
+            this.ctx.beginPath();
+            const circleData = {
+                topLeftCorner: {
+                    x: centerPoint.x +
+                        expandButton.length +
+                        expandButton.borderWidth / 2 -
+                        2,
+                    y: centerPoint.y + expandButton.borderWidth / 2 - expandButton.radius,
+                },
+                bottomRightCorner: {
+                    x: centerPoint.x +
+                        expandButton.radius * 2 +
+                        expandButton.borderWidth * 2,
+                    y: centerPoint.y + expandButton.radius,
+                },
+            };
+            this.ctx.ellipse(centerPoint.x +
+                expandButton.length +
+                expandButton.radius +
+                expandButton.borderWidth / 2 -
+                2, centerPoint.y + expandButton.borderWidth / 2, expandButton.radius, expandButton.radius, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.stroke();
+            this.ctx.fillStyle = expandButton.textColor;
+            this.ctx.font = expandButton.font;
+            const num = node.children.length.toString();
+            const textMeasure = this.getTextMeasure(num);
+            this.ctx.fillText(num, centerPoint.x +
+                expandButton.length +
+                expandButton.radius -
+                textMeasure.width / 2, centerPoint.y + textMeasure.totalHeight / 2 - 1);
+            this.ctx.font = this.globalStyle.font;
+            hotspots.push({
+                rect: this.getRealRectIRect(circleData),
+                triggerType: "expandCollapse",
+                action: "draw",
+                nodeId: node.nodeId,
+            });
+        }
+        else if (!node.collapseChildren && node.children) {
+            this.ctx.fillStyle = expandButton.background;
+            this.ctx.strokeStyle = expandButton.borderColor;
+            this.ctx.beginPath();
+            const circleData = {
+                topLeftCorner: {
+                    x: centerPoint.x + expandButton.borderWidth / 2 - expandButton.radius,
+                    y: centerPoint.y + expandButton.borderWidth / 2 - expandButton.radius,
+                },
+                bottomRightCorner: {
+                    x: centerPoint.x + expandButton.radius,
+                    y: centerPoint.y + expandButton.radius,
+                },
+            };
+            this.ctx.ellipse(centerPoint.x + expandButton.borderWidth / 2 - 2, centerPoint.y + expandButton.borderWidth / 2, expandButton.radius, expandButton.radius, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.stroke();
+            this.ctx.fillStyle = expandButton.textColor;
+            this.ctx.font = expandButton.font;
+            const textMeasure = this.getTextMeasure("-");
+            this.ctx.fillText("-", centerPoint.x - textMeasure.width / 2, centerPoint.y + textMeasure.totalHeight / 2);
+            this.ctx.font = this.globalStyle.font;
+            hotspots.push({
+                rect: this.getRealRectIRect(circleData),
+                triggerType: "expandCollapse",
+                action: "draw",
+                nodeId: node.nodeId,
+            });
+        }
         if (typeof hoverNodeId != "undefined" &&
             (hoverNodeId == node.nodeId ||
                 (node.link ? hoverNodeId == node.link.nodeId : false))) {
@@ -197,47 +249,46 @@ var painter = /** @class */ (function () {
                 this.globalStyle.hoverBorder.width +
                 node.style.borderWidth / 2, false);
         }
-        var result = {
+        const result = {
             x: x,
             y: y,
             width: drawInfo.width,
             height: drawInfo.height,
-            hotSpots: hotspots
+            hotSpots: hotspots,
         };
         return result;
-    };
-    painter.prototype.printText = function (text, textMeasure, style, x, y) {
-        var padding = style.padding;
-        var splittedText = text.split("\n");
-        for (var i = 0; i < splittedText.length; i++) {
-            this.ctx.fillText(splittedText[i], x + padding.left + style.borderWidth, y + (i + 1) * textMeasure.textHeight + padding.top);
+    }
+    printText(text, textMeasure, style, x, y) {
+        const padding = style.padding;
+        const splittedText = text.split("\n");
+        for (let i = 0; i < splittedText.length; i++) {
+            this.ctx.fillText(splittedText[i], x + padding.left + style.borderWidth, y + (i + 1) * textMeasure.textHeight + padding.top + style.borderWidth);
         }
-    };
-    painter.prototype.calcRect = function (node) {
+    }
+    calcRect(node) {
         this.ctx.font = node.style.font;
-        var nodewidth = node.style.width;
-        var nodeheight = node.style.height;
-        var image = this.images[node.image];
-        var imagePadding = image ? image.padding : null;
-        var padding = node.style.padding;
+        let nodewidth = node.style.width;
+        let nodeheight = node.style.height;
+        const image = this.images[node.image];
+        const imagePadding = image ? image.padding : null;
+        const padding = node.style.padding;
         if (!node.style.width) {
             nodewidth = node.style.borderWidth * 2;
-            var textSpace = node.textMeasure.width + padding.left + padding.right;
-            var imageSpace = (image ? imagePadding.left : 0) +
+            const textSpace = node.textMeasure.width + padding.left + padding.right;
+            const imageSpace = (image ? imagePadding.left : 0) +
                 (image ? imagePadding.right : 0) +
                 (image ? image.width : 0);
-            var linkSpace = 0;
+            let linkSpace = 0;
             if (node.link) {
                 linkSpace = node.link.textMeasure.width + padding.left + padding.right;
             }
-            var titleSpace = 0;
+            let titleSpace = 0;
             if (node.title) {
                 titleSpace = node.titleMeasure.width + padding.left + padding.right;
             }
-            var l = [textSpace, imageSpace, linkSpace, titleSpace];
-            var max = 0;
-            for (var _i = 0, l_1 = l; _i < l_1.length; _i++) {
-                var num = l_1[_i];
+            const l = [textSpace, imageSpace, linkSpace, titleSpace];
+            let max = 0;
+            for (const num of l) {
                 if (num > max) {
                     max = num;
                 }
@@ -262,30 +313,36 @@ var painter = /** @class */ (function () {
                 nodeheight += node.link.textMeasure.totalHeight + padding.top;
             }
         }
-        var result = {
+        const result = {
             width: nodewidth,
             height: nodeheight + this.NODE_PADDING,
-            textHeight: node.textMeasure.textHeight
+            textHeight: node.textMeasure.textHeight,
         };
         return result;
-    };
-    painter.prototype.getRealRect = function (_a, width, height) {
-        var x = _a.x, y = _a.y;
-        var result = {
+    }
+    getRealRect({ x, y }, width, height) {
+        const result = {
             topLeftCorner: { x: x * this.scale, y: y * this.scale },
             bottomRightCorner: {
                 x: x * this.scale + width * this.scale,
-                y: y * this.scale + height * this.scale
-            }
+                y: y * this.scale + height * this.scale,
+            },
         };
         return result;
-    };
-    painter.prototype.buildTree = function (node, baseX, baseY, level, hoverEffectNodeId) {
-        var hotSpots = [];
+    }
+    getRealRectIRect(rect) {
+        rect.topLeftCorner.x *= this.scale;
+        rect.topLeftCorner.y *= this.scale;
+        rect.bottomRightCorner.x *= this.scale;
+        rect.bottomRightCorner.y *= this.scale;
+        return rect;
+    }
+    buildTree(node, baseX, baseY, level, hoverEffectNodeId) {
+        let hotSpots = [];
         if (typeof level == "undefined") {
             level = 0;
         }
-        var currentColorLevel = this.globalStyle.predefinedColors.length > level
+        const currentColorLevel = this.globalStyle.predefinedColors.length > level
             ? this.globalStyle.predefinedColors[level]
             : this.globalStyle.defaultColor;
         if (!baseX) {
@@ -294,70 +351,68 @@ var painter = /** @class */ (function () {
         if (!baseY) {
             baseY = 10;
         }
-        var connectionStyle = this.globalStyle.defaultColor.childConnectionColor;
-        connectionStyle = __assign(__assign({}, currentColorLevel.childConnectionColor), node.connectionStyle);
-        var treeHeight = 0;
-        var image = this.images[node.image];
+        let connectionStyle = this.globalStyle.defaultColor.childConnectionColor;
+        connectionStyle = Object.assign(Object.assign({}, currentColorLevel.childConnectionColor), node.connectionStyle);
+        let treeHeight = 0;
+        let width = 0;
+        let image = this.images[node.image];
         if (image) {
             if (typeof image.padding == "number") {
                 image.padding = {
                     top: image.padding,
                     left: image.padding,
                     right: image.padding,
-                    bottom: image.padding
+                    bottom: image.padding,
                 };
             }
         }
-        var style = node.style;
+        const style = node.style;
         style.colors = currentColorLevel;
         this.ctx.font = style.font;
-        var thisNode = this.calcRect(node);
-        var connectPoints = [];
-        if (node.children) {
-            var info = void 0;
-            for (var _i = 0, _a = node.children; _i < _a.length; _i++) {
-                var childNode = _a[_i];
+        const thisNode = this.calcRect(node);
+        width = thisNode.width + this.NODE_X_PADDING;
+        const connectPoints = [];
+        if (node.children && !node.collapseChildren) {
+            let info;
+            for (const childNode of node.children) {
                 info = this.buildTree(childNode, baseX + thisNode.width + this.NODE_X_PADDING, treeHeight + baseY, level + 1, hoverEffectNodeId);
                 treeHeight += info.treeHeight + info.selfHeight;
                 connectPoints.push(info.connectPoint);
-                hotSpots = __spreadArrays(hotSpots, info.hotspots);
+                hotSpots = [...hotSpots, ...info.hotspots];
+                width += info.width;
             }
             treeHeight -= info.selfHeight;
         }
-        // Draw connections to children nodes
-        for (var _b = 0, connectPoints_1 = connectPoints; _b < connectPoints_1.length; _b++) {
-            var point = connectPoints_1[_b];
+        for (const point of connectPoints) {
             this.connect(baseX + thisNode.width, baseY + treeHeight / 2 + thisNode.height / 2 - this.NODE_PADDING / 2, baseX + thisNode.width + this.NODE_X_PADDING - 1, point, connectionStyle);
         }
-        // Draw parent node last to cover the head of the connections
-        var drawResult = this.drawRect(baseX, baseY + treeHeight / 2, thisNode, node, hoverEffectNodeId);
-        hotSpots = __spreadArrays(hotSpots, drawResult.hotSpots);
-        var rect = this.getRealRect({ x: drawResult.x, y: drawResult.y }, drawResult.width + style.borderWidth / 2, drawResult.height - this.NODE_PADDING + style.borderWidth);
+        const drawResult = this.drawRect(baseX, baseY + treeHeight / 2, thisNode, node, hoverEffectNodeId);
+        hotSpots = [...hotSpots, ...drawResult.hotSpots];
+        const rect = this.getRealRect({ x: drawResult.x, y: drawResult.y }, drawResult.width + style.borderWidth / 2, drawResult.height - this.NODE_PADDING + style.borderWidth);
         if (node.hotSpot) {
-            hotSpots.push(__assign({ rect: rect, triggerType: "node", nodeContent: node.content }, node.hotSpot));
+            hotSpots.push(Object.assign({ rect, triggerType: "node", nodeContent: node.content }, node.hotSpot));
         }
-        this.hoverSpots.push({ rect: rect, nodeId: node.nodeId });
+        this.hoverSpots.push({ rect, nodeId: node.nodeId });
         return {
             treeHeight: treeHeight,
             selfHeight: thisNode.height,
+            width,
             connectPoint: baseY + treeHeight / 2 + thisNode.height / 2 - this.NODE_PADDING / 2,
-            hotspots: hotSpots
+            hotspots: hotSpots,
         };
-    };
-    painter.prototype.wrapText = function (text, style) {
-        var splittedOriginal = text.split("\n");
-        var result = [];
-        var maxWidth = this.globalStyle.maxWidth -
+    }
+    wrapText(text, style) {
+        const splittedOriginal = text.split("\n");
+        const result = [];
+        const maxWidth = this.globalStyle.maxWidth -
             style.padding.left -
             style.padding.right;
-        for (var _i = 0, splittedOriginal_1 = splittedOriginal; _i < splittedOriginal_1.length; _i++) {
-            var line = splittedOriginal_1[_i];
-            var lineWidth = this.ctx.measureText(line).width;
+        for (const line of splittedOriginal) {
+            const lineWidth = this.ctx.measureText(line).width;
             if (lineWidth > maxWidth) {
-                // construct lines
-                var wrappedLines = [];
-                var currentLine = "";
-                for (var i = 0; i < line.length; i++) {
+                const wrappedLines = [];
+                let currentLine = "";
+                for (let i = 0; i < line.length; i++) {
                     if (this.ctx.measureText(currentLine + line[i]).width < maxWidth) {
                         currentLine += line[i];
                     }
@@ -376,15 +431,15 @@ var painter = /** @class */ (function () {
             }
         }
         return result.join("\n");
-    };
-    painter.prototype.processInitialStyle = function (style, defaults) {
-        var font = defaults ? defaults.font : "20px TimesNewRoman";
-        var innerPadding = defaults.padding;
-        var height;
-        var width;
-        var radius = defaults ? defaults.radius : 10;
-        var colors = defaults.defaultColor;
-        var borderWidth = defaults.borderWidth;
+    }
+    processInitialStyle(style, defaults) {
+        let font = defaults ? defaults.font : "20px TimesNewRoman";
+        let innerPadding = defaults.padding;
+        let height;
+        let width;
+        let radius = defaults ? defaults.radius : 10;
+        let colors = defaults.defaultColor;
+        let borderWidth = defaults.borderWidth;
         if (style) {
             if (style.font) {
                 font = style.font;
@@ -406,29 +461,26 @@ var painter = /** @class */ (function () {
                 top: innerPadding,
                 left: innerPadding,
                 right: innerPadding,
-                bottom: innerPadding
+                bottom: innerPadding,
             };
         }
         return {
-            font: font,
+            font,
             padding: innerPadding,
-            borderWidth: borderWidth,
-            height: height,
-            width: width,
-            radius: radius,
-            colors: colors
+            borderWidth,
+            height,
+            width,
+            radius,
+            colors,
         };
-    };
-    painter.prototype.roundedRect = function (x, y, width, height, radius, fill, border) {
-        if (radius === void 0) { radius = 5; }
-        if (fill === void 0) { fill = true; }
-        if (border === void 0) { border = true; }
+    }
+    roundedRect(x, y, width, height, radius = 5, fill = true, border = true) {
         if (typeof radius === "number") {
             radius = { tl: radius, tr: radius, br: radius, bl: radius };
         }
         else {
-            var defaultRadii = { tl: 0, tr: 0, br: 0, bl: 0 };
-            radius = __assign(__assign({}, defaultRadii), radius);
+            const defaultRadii = { tl: 0, tr: 0, br: 0, bl: 0 };
+            radius = Object.assign(Object.assign({}, defaultRadii), radius);
         }
         this.ctx.beginPath();
         this.ctx.moveTo(x + radius.tl, y);
@@ -445,26 +497,24 @@ var painter = /** @class */ (function () {
             this.ctx.fill();
         if (border)
             this.ctx.stroke();
-    };
-    painter.prototype.inRect = function (pos, rect) {
+    }
+    inRect(pos, rect) {
         if (pos.x >= rect.topLeftCorner.x && pos.x <= rect.bottomRightCorner.x) {
             if (pos.y >= rect.topLeftCorner.y && pos.y <= rect.bottomRightCorner.y) {
                 return true;
             }
         }
         return false;
-    };
-    painter.prototype.getCurrentHoverSpot = function (point) {
-        var spots = [];
-        for (var _i = 0, _a = this.hoverSpots; _i < _a.length; _i++) {
-            var hoverspot = _a[_i];
+    }
+    getCurrentHoverSpot(point) {
+        const spots = [];
+        for (const hoverspot of this.hoverSpots) {
             if (this.inRect(point, hoverspot.rect)) {
                 spots.push(hoverspot);
             }
         }
         if (spots.length > 1) {
-            for (var _b = 0, spots_1 = spots; _b < spots_1.length; _b++) {
-                var hoverspot = spots_1[_b];
+            for (const hoverspot of spots) {
                 if (hoverspot.nodeId.indexOf("link") != -1) {
                     return hoverspot;
                 }
@@ -473,25 +523,26 @@ var painter = /** @class */ (function () {
         else {
             return spots.length > 0 ? spots[0] : null;
         }
-    };
-    painter.prototype.useHoverEffect = function (nodeId) {
+    }
+    useHoverEffect(nodeId) {
         this.wipe();
         this.build(this.scale, this.offsetX, this.offsetY, nodeId);
-    };
-    painter.prototype.wipe = function () {
-        this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-    };
-    painter.prototype.getCurrentHotSpot = function (point) {
-        var spots = [];
-        for (var _i = 0, _a = this.hotSpots; _i < _a.length; _i++) {
-            var hotspot = _a[_i];
+    }
+    wipe() {
+        this.ctx.clearRect(0, 0, this.ctx.canvas.width / this.scale, this.ctx.canvas.height / this.scale);
+    }
+    getCurrentHotSpot(point) {
+        const spots = [];
+        for (const hotspot of this.hotSpots) {
             if (this.inRect(point, hotspot.rect)) {
                 spots.push(hotspot);
             }
         }
         if (spots.length > 1) {
-            for (var _b = 0, spots_2 = spots; _b < spots_2.length; _b++) {
-                var hotspot = spots_2[_b];
+            for (const hotspot of spots) {
+                if (hotspot.triggerType == "expandCollapse") {
+                    return hotspot;
+                }
                 if (hotspot.triggerType == "link") {
                     return hotspot;
                 }
@@ -500,20 +551,49 @@ var painter = /** @class */ (function () {
         else {
             return spots.length > 0 ? spots[0] : null;
         }
-    };
-    painter.prototype.prepareNodeId = function (node, levelHeader) {
+    }
+    doNodeExpandCollapse(nodeId) {
+        const node = this.findNode(nodeId, this.data.node);
+        node.collapseChildren = !node.collapseChildren;
+        this.wipe();
+        this.build(this.scale, this.offsetX, this.offsetY, undefined);
+        console.log(node);
+    }
+    findNode(nodeId, currentNode) {
+        if (currentNode.nodeId == nodeId) {
+            return currentNode;
+        }
+        if (currentNode.children) {
+            for (const child of currentNode.children) {
+                if (child.nodeId == nodeId) {
+                    return child;
+                }
+            }
+            for (const child of currentNode.children) {
+                const result = this.findNode(nodeId, child);
+                if (result) {
+                    return result;
+                }
+            }
+        }
+    }
+    prepareNodeId(node, levelHeader) {
         if (!levelHeader) {
             levelHeader = "0";
         }
         node.nodeId = levelHeader;
         if (node.children) {
-            for (var i = 0; i < node.children.length; i++) {
+            for (let i = 0; i < node.children.length; i++) {
                 this.prepareNodeId(node.children[i], node.nodeId + "-" + i);
             }
         }
         return node;
-    };
-    painter.prototype.build = function (scale, xOffset, yOffset, hoverNodeId) {
+    }
+    rebuild(hoverNodeId) {
+        this.wipe();
+        this.build(this.scale, this.offsetX, this.offsetY, hoverNodeId);
+    }
+    build(scale, xOffset, yOffset, hoverNodeId) {
         if (typeof xOffset == "undefined") {
             xOffset = this.offsetX;
         }
@@ -523,11 +603,10 @@ var painter = /** @class */ (function () {
         this.scale = scale;
         this.hotSpots = [];
         this.hoverSpots = [];
-        var result = this.buildTree(this.data.node, 50 + xOffset, 50 + yOffset, undefined, hoverNodeId);
+        const result = this.buildTree(this.data.node, 50 + xOffset, 50 + yOffset, undefined, hoverNodeId);
         this.offsetX = xOffset;
         this.offsetY = yOffset;
         this.hotSpots = result.hotspots;
         return result;
-    };
-    return painter;
-}());
+    }
+}
