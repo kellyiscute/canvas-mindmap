@@ -759,12 +759,21 @@ export default class painter {
   }
 
   wipe() {
-    this.ctx.clearRect(
-      0,
-      0,
-      this.ctx.canvas.width * this.scale,
-      this.ctx.canvas.height * this.scale
-    );
+    if (this.scale > 1) {
+      this.ctx.clearRect(
+        0,
+        0,
+        this.ctx.canvas.width * this.scale,
+        this.ctx.canvas.height * this.scale
+      );
+    } else {
+      this.ctx.clearRect(
+        0,
+        0,
+        this.ctx.canvas.width / this.scale,
+        this.ctx.canvas.height / this.scale
+      );
+    }
   }
 
   getCurrentHotSpot(point: IPoint): IHotSpot {
