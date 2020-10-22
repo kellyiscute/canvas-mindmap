@@ -58,12 +58,12 @@ export default class painter {
     }
 
     if (level > 0) {
-      node.collapseChildren = true;
+      node.collapseChildren = false;
     }
   }
 
   getTextMeasure(text: string): ITextMeasure {
-    const splittedText = text.split("\n");
+    const splittedText = text.split('\n');
     const measure = this.ctx.measureText(splittedText[0]);
     const textMeasure = { width: 0, textHeight: 0, totalHeight: 0 };
     for (const content of splittedText) {
@@ -74,7 +74,7 @@ export default class painter {
     }
     const textHeight =
       (measure.actualBoundingBoxAscent - measure.actualBoundingBoxDescent) *
-      1.5;
+      1.7;
     textMeasure.textHeight = textHeight;
     textMeasure.totalHeight = textHeight * splittedText.length;
 
@@ -143,19 +143,20 @@ export default class painter {
     } else {
       this.ctx.fillStyle = node.style.colors.background;
     }
+    const halfBorder = node.style.borderWidth / 2
     this.roundedRect(
-      x + node.style.borderWidth / 2,
-      y + node.style.borderWidth / 2,
-      drawInfo.width - node.style.borderWidth / 2,
-      drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
+      x + halfBorder,
+      y + halfBorder,
+      drawInfo.width - halfBorder,
+      drawInfo.height - this.NODE_PADDING - halfBorder,
       node.style.radius
     );
     if (node.title) {
       this.ctx.fillStyle = node.style.colors.titleBackground;
       // fill title rect
       this.roundedRect(
-        x + node.style.borderWidth / 2,
-        y + node.style.borderWidth / 2,
+        x + halfBorder,
+        y + halfBorder,
         drawInfo.width,
         node.titleMeasure.totalHeight +
           node.style.borderWidth +
@@ -171,10 +172,10 @@ export default class painter {
       currentY += padding.top + padding.bottom + node.titleMeasure.totalHeight;
       // redraw border
       this.roundedRect(
-        x + node.style.borderWidth / 2,
-        y + node.style.borderWidth / 2,
-        drawInfo.width - node.style.borderWidth / 2,
-        drawInfo.height - this.NODE_PADDING - node.style.borderWidth / 2,
+        x + halfBorder,
+        y + halfBorder,
+        drawInfo.width - halfBorder,
+        drawInfo.height - this.NODE_PADDING - halfBorder,
         node.style.radius,
         false
       );
@@ -375,27 +376,26 @@ export default class painter {
         x - this.globalStyle.hoverBorder.width / 2,
         y - this.globalStyle.hoverBorder.width / 2,
         drawInfo.width +
-          node.style.borderWidth / 2 +
+          halfBorder +
           this.globalStyle.hoverBorder.width,
         drawInfo.height +
-          node.style.borderWidth / 2 -
+          halfBorder -
           this.NODE_PADDING +
           this.globalStyle.hoverBorder.width,
         node.style.radius +
           this.globalStyle.hoverBorder.width +
-          node.style.borderWidth / 2,
+          halfBorder,
         false
       );
     }
 
-    const result: IDrawResult = {
+    return {
       x: x,
       y: y,
       width: drawInfo.width,
       height: drawInfo.height,
       hotSpots: hotspots,
     };
-    return result;
   }
 
   printText(
@@ -469,24 +469,21 @@ export default class painter {
       }
     }
 
-    const result: IDrawInfo = {
+    return {
       width: nodewidth,
       height: nodeheight + this.NODE_PADDING,
       textHeight: node.textMeasure.textHeight,
     };
-    return result;
   }
 
   getRealRect({ x, y }: IPoint, width: number, height: number): IRect {
-    const result = {
-      topLeftCorner: { x: x * this.scale, y: y * this.scale },
+    return {
+      topLeftCorner: {x: x * this.scale, y: y * this.scale},
       bottomRightCorner: {
         x: x * this.scale + width * this.scale,
         y: y * this.scale + height * this.scale,
       },
     };
-
-    return result;
   }
 
   getRealRectIRect(rect: IRect) {
@@ -520,14 +517,14 @@ export default class painter {
     if (!baseY) {
       baseY = 10;
     }
-    let connectionStyle = this.globalStyle.defaultColor.childConnectionColor;
+    let connectionStyle: IConnectionStyle;
     connectionStyle = {
       ...currentColorLevel.childConnectionColor,
       ...node.connectionStyle,
     };
 
     let treeHeight = 0;
-    let width: number = 0;
+    let width: number;
 
     let image: IProcessedImageRes = <IProcessedImageRes>this.images[node.image];
     if (image) {
@@ -551,6 +548,7 @@ export default class painter {
     const connectPoints = [];
     if (node.children && !node.collapseChildren) {
       let info: ITreeBuildResult;
+      let maxWidth = 0;
       for (const childNode of node.children) {
         info = this.buildTree(
           childNode,
@@ -562,9 +560,14 @@ export default class painter {
         treeHeight += info.treeHeight + info.selfHeight;
         connectPoints.push(info.connectPoint);
         hotSpots = [...hotSpots, ...info.hotspots];
+        if (info.width > maxWidth) {
+          maxWidth = info.width;
+        }
       }
-      width += info.width;
-      treeHeight -= info.selfHeight;
+      width += maxWidth;
+      if (node.children) {
+        treeHeight -= thisNode.height
+      }
     }
     // Draw connections to children nodes
     for (const point of connectPoints) {
@@ -601,6 +604,7 @@ export default class painter {
       });
     }
     this.hoverSpots.push({ rect, nodeId: node.nodeId });
+
     return {
       treeHeight: treeHeight,
       selfHeight: thisNode.height,
